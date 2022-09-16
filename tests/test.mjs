@@ -19,7 +19,7 @@ export const FormTest = defineComponent({
 
 export const Layout = defineComponent({
   render() {
-    return <R v-slots={{render: () => []}} v-slots={{item: () => []}} icon={<i></i>}>
+    return <R v-slots={{render: () => []}} v-slots={{item: () => []}} icon={<i></i>} className="cls" onUpdateValue={updateValue}>
       <FormTest {...props1} class="class" {...props2} on={{click: () => {}, updateEvent: (e) => e}} />
     </R>
   }
@@ -65,6 +65,8 @@ transform(code, {
             enable_object_slots: true,
             transformOn: true,
             optimize: true,
+            reactStyle: true,
+            transformOnUpdateEvent: true
           }
         ]
       ]
