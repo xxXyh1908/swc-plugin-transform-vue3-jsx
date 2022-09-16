@@ -1,4 +1,4 @@
-import { isVNode } from 'vue'
+import { isVNode, useSSRContext } from 'vue'
 
 /*@__PURE__*/ const { toString } = Object.prototype
 /*@__PURE__*/ const { isArray } = Array
@@ -35,4 +35,18 @@ export const toObjectSlots = slots => {
     : typeof slots === 'function'
     ? { default: slots }
     : { default: () => [slots] }
+}
+
+/**
+ * module during SSR
+ */
+export const ssrRegisterHelper = (comp, filename) => {
+  const setup = comp.setup
+  comp.setup = (props, ctx) => {
+    const ssrContext = useSSRContext()
+    ;(ssrContext.modules || (ssrContext.modules = new Set())).add(filename)
+    if (setup) {
+      return setup(props, ctx)
+    }
+  }
 }

@@ -27,7 +27,7 @@ export const Layout = defineComponent({
 
 export default defineComponent({
   render() {
-    return <NButton v-slots={{icon: () => <Icon/>}} >{{ default: () => 'Star Kirby' }}</NButton>
+    return <NButton onA={a} onA={b} on={testTransformOn} v-slots={slots} v-slots={{icon: () => <Icon/>}} >{{ default: () => 'Star Kirby' }}</NButton>
   },
 })
 `

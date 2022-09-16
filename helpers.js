@@ -1,6 +1,6 @@
 'use strict'
 Object.defineProperty(exports, '__esModule', { value: true })
-const { isVNode } = require('vue')
+const { isVNode, useSSRContext } = require('vue')
 const { toString } = Object.prototype
 const { isArray } = Array
 const castArray = value => {
@@ -30,3 +30,17 @@ const toObjectSlots = slots => {
     : { default: () => [slots] }
 }
 exports.toObjectSlots = toObjectSlots
+/**
+ * module during SSR
+ */
+const ssrRegisterHelper = (comp, filename) => {
+  const setup = comp.setup
+  comp.setup = (props, ctx) => {
+    const ssrContext = useSSRContext()
+    ;(ssrContext.modules || (ssrContext.modules = new Set())).add(filename)
+    if (setup) {
+      return setup(props, ctx)
+    }
+  }
+}
+exports.ssrRegisterHelper = ssrRegisterHelper
