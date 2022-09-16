@@ -11,12 +11,15 @@
 💡SWC plugin for faster conversion `vue3-jsx`.
 
 ## Installation
+
 #### npm
+
 ```bash
 npm install swc-plugin-transform-vue3-jsx -D
 ```
 
 #### yarn
+
 ```bash
 yarn add swc-plugin-transform-vue3-jsx -D
 ```
@@ -24,6 +27,7 @@ yarn add swc-plugin-transform-vue3-jsx -D
 ## Usage
 
 .swcrc
+
 ```json
 {
   "jsc": {
@@ -33,13 +37,13 @@ yarn add swc-plugin-transform-vue3-jsx -D
     }
   },
   "experimental": {
-    "plugins": [["swc-plugin-transform-vue3-jsx", {  }]]
-    }
+    "plugins": [["swc-plugin-transform-vue3-jsx", {}]]
   }
 }
 ```
 
 ## VS [@vue/babel-plugin-jsx](https://www.npmjs.com/package/@vue/babel-plugin-jsx)
+
 1. ✅ New option `reactStyle`: Convert `react-jsx` syntax into `vue3-jsx` equivalent conversion product, which is convenient for developers to quickly convert `react-projects` into `vue-projects`.
 2. ✅ New Option `transformOnUpdateEvent`: To convert any property that looks like `onUpdateXxx` to an `onUpdate:xxx` property (which is not a legal prop-name due to JSX's own rules), often used for `naive-UI`.
 3. ✅ New Option `hmr`: Generate the HMR code.
@@ -92,8 +96,9 @@ Default: `undefined`
 configuring custom elements.
 
 .e.g
+
 ```js
-['my-custom-element', /^my-[a-z0-9-]+$/.toString()]
+;['my-custom-element', /^my-[a-z0-9-]+$/.toString()]
 ```
 
 #### mergeProps
@@ -157,7 +162,7 @@ Generate the HMR code.
 functional component
 
 ```jsx
-const App = () => <div>Vue 3.0</div>;
+const App = () => <div>Vue 3.0</div>
 ```
 
 with render
@@ -165,27 +170,25 @@ with render
 ```jsx
 const App = {
   render() {
-    return <div>Vue 3.0</div>;
-  },
-};
+    return <div>Vue 3.0</div>
+  }
+}
 ```
 
 ```jsx
-import { withModifiers, defineComponent } from "vue";
+import { withModifiers, defineComponent } from 'vue'
 
 const App = defineComponent({
   setup() {
-    const count = ref(0);
+    const count = ref(0)
 
     const inc = () => {
-      count.value++;
-    };
+      count.value++
+    }
 
-    return () => (
-      <div onClick={withModifiers(inc, ["self"])}>{count.value}</div>
-    );
-  },
-});
+    return () => <div onClick={withModifiers(inc, ['self'])}>{count.value}</div>
+  }
+})
 ```
 
 Fragment
@@ -196,20 +199,20 @@ const App = () => (
     <span>I'm</span>
     <span>Fragment</span>
   </>
-);
+)
 ```
 
 ### Attributes / Props
 
 ```jsx
-const App = () => <input type="email" />;
+const App = () => <input type="email" />
 ```
 
 with a dynamic binding:
 
 ```jsx
-const placeholderText = "email";
-const App = () => <input type="email" placeholder={placeholderText} />;
+const placeholderText = 'email'
+const App = () => <input type="email" placeholder={placeholderText} />
 ```
 
 ### Directives
@@ -219,12 +222,12 @@ const App = () => <input type="email" placeholder={placeholderText} />;
 ```jsx
 const App = {
   data() {
-    return { visible: true };
+    return { visible: true }
   },
   render() {
-    return <input v-show={this.visible} />;
-  },
-};
+    return <input v-show={this.visible} />
+  }
+}
 ```
 
 #### v-model
@@ -240,11 +243,11 @@ const App = {
 ```
 
 ```jsx
-<input v-model={[val, ["modifier"]]} />
+<input v-model={[val, ['modifier']]} />
 ```
 
 ```jsx
-<A v-model={[val, "argument", ["modifier"]]} />
+<A v-model={[val, 'argument', ['modifier']]} />
 ```
 
 Will compile to:
@@ -253,10 +256,10 @@ Will compile to:
 createVNode(A, {
   argument: val,
   argumentModifiers: {
-    modifier: true,
+    modifier: true
   },
-  "onUpdate:argument": ($event) => (val = $event),
-});
+  'onUpdate:argument': $event => (val = $event)
+})
 ```
 
 #### v-models (Not recommended since v1.1.0)
@@ -264,14 +267,14 @@ createVNode(A, {
 > Note: You should pass a Two-dimensional Arrays to v-models.
 
 ```jsx
-<A v-models={[[foo], [bar, "bar"]]} />
+<A v-models={[[foo], [bar, 'bar']]} />
 ```
 
 ```jsx
 <A
   v-models={[
-    [foo, "foo"],
-    [bar, "bar"],
+    [foo, 'foo'],
+    [bar, 'bar']
   ]}
 />
 ```
@@ -279,8 +282,8 @@ createVNode(A, {
 ```jsx
 <A
   v-models={[
-    [foo, ["modifier"]],
-    [bar, "bar", ["modifier"]],
+    [foo, ['modifier']],
+    [bar, 'bar', ['modifier']]
   ]}
 />
 ```
@@ -291,15 +294,15 @@ Will compile to:
 createVNode(A, {
   modelValue: foo,
   modelValueModifiers: {
-    modifier: true,
+    modifier: true
   },
-  "onUpdate:modelValue": ($event) => (foo = $event),
+  'onUpdate:modelValue': $event => (foo = $event),
   bar: bar,
   barModifiers: {
-    modifier: true,
+    modifier: true
   },
-  "onUpdate:bar": ($event) => (bar = $event),
-});
+  'onUpdate:bar': $event => (bar = $event)
+})
 ```
 
 #### custom directive
@@ -310,18 +313,18 @@ Recommended when using string arguments
 const App = {
   directives: { custom: customDirective },
   setup() {
-    return () => <a v-custom:arg={val} />;
-  },
-};
+    return () => <a v-custom:arg={val} />
+  }
+}
 ```
 
 ```jsx
 const App = {
   directives: { custom: customDirective },
   setup() {
-    return () => <a v-custom={[val, "arg", ["a", "b"]]} />;
-  },
-};
+    return () => <a v-custom={[val, 'arg', ['a', 'b']]} />
+  }
+}
 ```
 
 ### Slot
@@ -331,23 +334,23 @@ const App = {
 ```jsx
 const A = (props, { slots }) => (
   <>
-    <h1>{ slots.default ? slots.default() : 'foo' }</h1>
-    <h2>{ slots.bar?.() }</h2>
+    <h1>{slots.default ? slots.default() : 'foo'}</h1>
+    <h2>{slots.bar?.()}</h2>
   </>
-);
+)
 
 const App = {
   setup() {
     const slots = {
-      bar: () => <span>B</span>,
-    };
+      bar: () => <span>B</span>
+    }
     return () => (
       <A v-slots={slots}>
         <div>A</div>
       </A>
-    );
-  },
-};
+    )
+  }
+}
 
 // or
 
@@ -355,11 +358,11 @@ const App = {
   setup() {
     const slots = {
       default: () => <div>A</div>,
-      bar: () => <span>B</span>,
-    };
-    return () => <A v-slots={slots} />;
-  },
-};
+      bar: () => <span>B</span>
+    }
+    return () => <A v-slots={slots} />
+  }
+}
 
 // or you can use object slots when `enableObjectSlots` is not false.
 const App = {
@@ -369,14 +372,14 @@ const App = {
         <A>
           {{
             default: () => <div>A</div>,
-            bar: () => <span>B</span>,
+            bar: () => <span>B</span>
           }}
         </A>
-        <B>{() => "foo"}</B>
+        <B>{() => 'foo'}</B>
       </>
-    );
-  },
-};
+    )
+  }
+}
 ```
 
 ## Give a ⭐️ if this project helped you!
