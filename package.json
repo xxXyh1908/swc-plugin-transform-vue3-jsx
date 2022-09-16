@@ -1,0 +1,32 @@
+{
+  "name": "swc-plugin-transform-vue3-jsx",
+  "version": "0.1.0",
+  "description": "SWC plugin for transform Vue3-jsx syntax",
+  "author": "xxXyh1908",
+  "license": "MIT",
+  "keywords": [
+    "swc-plugin",
+    "vue",
+    "jsx"
+  ],
+  "files": [
+    "helpers.js",
+    "helpers.mjs",
+    "target/wasm32-wasi/release/swc_plugin_transform_vue3_jsx.wasm"
+  ],
+  "main": "target/wasm32-wasi/release/swc_plugin_transform_vue3_jsx.wasm",
+  "scripts": {
+    "prepublishOnly": "cargo build-wasi --release"
+  },
+  "exports": {
+    ".": "./target/wasm32-wasi/release/swc_plugin_transform_vue3_jsx.wasm",
+    "./package.json": "./package.json",
+    "./helpers": {
+      "import": "./helpers.mjs",
+      "require": "./helpers.js"
+    }
+  },
+  "devDependencies": {
+    "@swc/core": "^1.3.1"
+  }
+}
