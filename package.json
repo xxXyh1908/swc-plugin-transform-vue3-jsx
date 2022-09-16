@@ -16,7 +16,8 @@
   ],
   "main": "target/wasm32-wasi/release/swc_plugin_transform_vue3_jsx.wasm",
   "scripts": {
-    "prepublishOnly": "cargo build-wasi --release"
+    "prepublishOnly": "cargo build-wasi --release",
+    "release": "bumpp --commit --push --tag --all -x 'npx conventional-changelog -p angular -i CHANGELOG.md -s' && npm publish"
   },
   "exports": {
     ".": "./target/wasm32-wasi/release/swc_plugin_transform_vue3_jsx.wasm",
@@ -27,6 +28,16 @@
     }
   },
   "devDependencies": {
-    "@swc/core": "^1.3.1"
-  }
+    "@swc/core": "^1.3.1",
+    "bumpp": "^8.2.1",
+    "conventional-changelog-cli": "^2.2.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xxXyh1908/swc-plugin-transform-vue3-jsx"
+  },
+  "bugs": {
+    "url": "https://github.com/xxXyh1908/swc-plugin-transform-vue3-jsx/issues"
+  },
+  "homepage": "https://github.com/xxXyh1908/swc-plugin-transform-vue3-jsx/#readme"
 }
