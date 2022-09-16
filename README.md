@@ -37,7 +37,7 @@ yarn add swc-plugin-transform-vue3-jsx -D
     }
   },
   "experimental": {
-    "plugins": [["swc-plugin-transform-vue3-jsx", {}]]
+    "plugins": [["swc-plugin-transform-vue3-jsx", { }]]
   }
 }
 ```
