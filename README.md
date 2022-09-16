@@ -379,19 +379,6 @@ const App = {
 };
 ```
 
-### In TypeScript
-
-`tsconfig.json`:
-
-```json
-{
-  "compilerOptions": {
-    "jsx": "preserve"
-  }
-}
-```
-
-
 ## Give a ⭐️ if this project helped you!
 
 ## License
