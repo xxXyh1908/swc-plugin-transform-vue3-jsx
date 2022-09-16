@@ -2236,9 +2236,11 @@ impl<C: Comments> JSXTransformVisitor<C> {
                     $ssr_register_helper_expressions;
                 } else if (typeof $__VUE_HMR_RUNTIME__ !== 'undefined') {
                     $create_record_expressions;
-                    const accept_callback = ($__MODULE__) => { 
-                        const $object_pattern = $__MODULE__; 
-                        $reload_record_expressions; 
+                    const accept_callback = ($__MODULE__) => {
+                        if ($__MODULE__) {
+                            const $object_pattern = $__MODULE__; 
+                            $reload_record_expressions;
+                        }
                     };
 
                     if (import.meta.hot) {
