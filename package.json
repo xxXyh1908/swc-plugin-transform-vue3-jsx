@@ -19,6 +19,9 @@
     "prepublishOnly": "cargo build-wasi --release",
     "release": "bumpp --commit --push --tag --all -x 'npx conventional-changelog -p angular -i CHANGELOG.md -s' && npm publish"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": "./target/wasm32-wasi/release/swc_plugin_transform_vue3_jsx.wasm",
     "./package.json": "./package.json",
