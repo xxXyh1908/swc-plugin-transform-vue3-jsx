@@ -2665,55 +2665,78 @@ impl<C: Comments> JSXTransformVisitor<C> {
             children_param = children_expr;
         }
 
-        match &mut children_param {
-            Expr::Array(array) => {
-                if array.elems.is_empty() {
-                    children_param = create_null_expr()
-                }
-            }
-            Expr::Object(object) => {
-                if object.props.is_empty() {
-                    children_param = create_null_expr()
-                } else if self.config.optimize {
-                    let mut optimize_slots = true;
-                    for prop in object.props.iter() {
-                        if let PropOrSpread::Prop(prop) = prop {
-                            match prop.as_ref() {
-                                Prop::Shorthand(_) => {
-                                    continue;
-                                }
-                                Prop::KeyValue(key_value) => {
-                                    if let ObjectKey::Str(_) = ObjectKey::from(&key_value.key) {
-                                        if let Expr::Arrow(_) = &key_value.value.as_ref() {
-                                            continue;
-                                        }
-                                    }
-                                }
-                                _ => {}
+        if let Expr::Array(array) = &mut children_param {
+            if array.elems.is_empty() {
+                children_param = create_null_expr()
+            } else if array.elems.len() == 1 {
+                let mut result = create_null_expr();
+                match array.elems.pop() {
+                    Some(elem1) => match elem1 {
+                        Some(elem1) => {
+                            if let Some(_) = &elem1.spread {
+                                result = Expr::Array(ArrayLit {
+                                    span: array.span.clone(),
+                                    elems: vec![Some(elem1)],
+                                })
+                            } else if let Expr::Object(object) = unwrap_expr(elem1.expr.as_ref()) {
+                                result = Expr::Object(object.clone())
+                            } else {
+                                result = Expr::Array(ArrayLit {
+                                    span: array.span.clone(),
+                                    elems: vec![Some(elem1)],
+                                })
                             }
                         }
+                        _ => {}
+                    },
+                    _ => {}
+                };
 
-                        optimize_slots = false;
-                        break;
+                children_param = result;
+            }
+        }
+
+        if let Expr::Object(object) = &mut children_param {
+            if object.props.is_empty() {
+                children_param = create_null_expr()
+            } else if self.config.optimize {
+                let mut optimize_slots = true;
+                for prop in object.props.iter() {
+                    if let PropOrSpread::Prop(prop) = prop {
+                        match prop.as_ref() {
+                            Prop::Shorthand(_) => {
+                                continue;
+                            }
+                            Prop::KeyValue(key_value) => {
+                                if let ObjectKey::Str(_) = ObjectKey::from(&key_value.key) {
+                                    if let Expr::Arrow(_) = &key_value.value.as_ref() {
+                                        continue;
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
                     }
 
-                    if optimize_slots {
-                        object
-                            .props
-                            .push(PropOrSpread::Prop(Box::new(create_key_value_prop(
-                                String::from("_"),
-                                Expr::Lit(Lit::Num(Number::from(SlotFlags::STABLE as f64))),
-                            ))))
-                    }
+                    optimize_slots = false;
+                    break;
+                }
+
+                if optimize_slots {
+                    object
+                        .props
+                        .push(PropOrSpread::Prop(Box::new(create_key_value_prop(
+                            String::from("_"),
+                            Expr::Lit(Lit::Num(Number::from(SlotFlags::STABLE as f64))),
+                        ))))
                 }
             }
-            _ => {}
         }
 
         match &mut props_param {
             Expr::Object(object) => {
                 if object.props.is_empty() {
-                    children_param = create_null_expr()
+                    props_param = create_null_expr()
                 }
             }
             _ => {}
