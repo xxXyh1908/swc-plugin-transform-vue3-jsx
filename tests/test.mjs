@@ -19,7 +19,15 @@ export const FormTest = defineComponent({
 
 export const Layout = defineComponent({
   render() {
-    return <R v-slots={{render: () => []}} v-slots={{item: () => []}} icon={<i></i>} className="cls" onUpdateValue={updateValue}>
+    return <R 
+      v-slots={{render: () => []}}
+      v-slots={{item: () => []}}
+      icon={<i></i>}
+      className="
+        red
+        bg-green
+      "
+      onUpdateValue={updateValue}>
       <FormTest {...props1} class="class" {...props2} on={{click: () => {}, updateEvent: (e) => e}} />
     </R>
   }
