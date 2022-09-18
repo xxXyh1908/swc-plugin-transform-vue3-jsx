@@ -9,6 +9,8 @@ const castArray = value => {
   else return [value]
 }
 exports.castArray = castArray
+const upperFirst = str => str[0].toUpperCase() + str.slice(1)
+exports.upperFirst = upperFirst
 exports.ssr = typeof __SSR__ === 'boolean' ? __SSR__ : process.env.SSR
 const transformOn = obj => {
   const result = {}
@@ -20,6 +22,23 @@ const transformOn = obj => {
   return result
 }
 exports.transformOn = transformOn
+const onceArrowFunctionWithNoArgs = fn => {
+  let result
+  let isCalled = false
+
+  return (() => {
+    if (isCalled) {
+      return result
+    } else {
+      result = fn()
+      isCalled = true
+      return result
+    }
+  })
+}
+exports.onceArrowFunctionWithNoArgs = onceArrowFunctionWithNoArgs
+const toSlot = slot => typeof slot === 'function' ? slot : () => [slot]
+exports.toSlot = toSlot
 const toObjectSlots = slots => {
   return slots == null
     ? null

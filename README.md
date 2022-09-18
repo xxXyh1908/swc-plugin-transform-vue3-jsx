@@ -100,7 +100,7 @@ configuring custom elements.
 .e.g
 
 ```js
-;['my-custom-element', /^my-[a-z0-9-]+$/.toString()]
+['my-custom-element', /^my-[a-z0-9-]+$/.toString()]
 ```
 
 #### mergeProps
@@ -240,13 +240,45 @@ const App = {
 <input v-model={val} />
 ```
 
+Will compile to:
+
+```js
+createVNode('input', {
+  modelValue: val,
+  'onUpdate:modelValue': $event => (val = $event)
+})
+```
+
 ```jsx
-<input v-model:argument={val} />
+<input v-model:argument_modifier={val} />
+```
+
+Will compile to:
+
+```js
+createVNode('input', {
+  argument: val,
+  argumentModifiers: {
+    modifier: true
+  },
+  'onUpdate:argument': $event => (val = $event)
+})
 ```
 
 ```jsx
 <input v-model={[val, ['modifier']]} />
 ```
+
+```js
+createVNode('input', {
+  modelValue: val,
+  modelValueModifiers: {
+    modifier: true
+  },
+  'onUpdate:modelValue': $event => (val = $event)
+})
+```
+
 
 ```jsx
 <A v-model={[val, 'argument', ['modifier']]} />
@@ -264,7 +296,7 @@ createVNode(A, {
 })
 ```
 
-#### v-models (Not recommended since v1.1.0)
+#### v-models
 
 > Note: You should pass a Two-dimensional Arrays to v-models.
 
@@ -344,7 +376,7 @@ const A = (props, { slots }) => (
 const App = {
   setup() {
     const slots = {
-      bar: () => <span>B</span>
+      bar: () => [<span>B</span>]
     }
     return () => (
       <A v-slots={slots}>
@@ -359,8 +391,8 @@ const App = {
 const App = {
   setup() {
     const slots = {
-      default: () => <div>A</div>,
-      bar: () => <span>B</span>
+      default: () => [<div>A</div>],
+      bar: () => [<span>B</span>]
     }
     return () => <A v-slots={slots} />
   }
@@ -373,8 +405,8 @@ const App = {
       <>
         <A>
           {{
-            default: () => <div>A</div>,
-            bar: () => <span>B</span>
+            default: () => [<div>A</div>],
+            bar: () => [<span>B</span>]
           }}
         </A>
         <B>{() => 'foo'}</B>

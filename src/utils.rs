@@ -199,21 +199,23 @@ pub(crate) fn create_filter(include: Option<Vec<String>>) -> Box<dyn StringFilte
 lazy_static! {
     static ref CAMELIZE_REGEX: Regex = Regex::new(r"-(\w)").unwrap();
     static ref CAMELIZE_UPPER_FIRST_REGEX: Regex = Regex::new(r"(?:^|-)(\w)").unwrap();
-    static ref UPPER_FIRST_REGEX: Regex = Regex::new(r"^([a-z])").unwrap();
-    static ref LOWER_FIRST_REGEX: Regex = Regex::new(r"^([A-Z])").unwrap();
     static ref IS_MATCHER_REGEX: Regex = Regex::new(r"^[*{]|^[^\\/]*[*{][^\\/]*$").unwrap();
 }
 
 pub(crate) fn upper_first(str: &str) -> String {
-    return UPPER_FIRST_REGEX
-        .replace(str, |caps: &Captures| (&caps[1]).to_string().to_uppercase())
-        .to_string();
+    let mut chars = str.chars().collect::<Vec<char>>();
+    if !chars.is_empty() {
+        chars[0] = chars[0].to_ascii_uppercase();
+    }
+    return chars.iter().collect::<String>()
 }
 
 pub(crate) fn lower_first(str: &str) -> String {
-    return LOWER_FIRST_REGEX
-        .replace(str, |caps: &Captures| (&caps[1]).to_string().to_lowercase())
-        .to_string();
+    let mut chars = str.chars().collect::<Vec<char>>();
+    if !chars.is_empty() {
+        chars[0] = chars[0].to_ascii_lowercase();
+    }
+    return chars.iter().collect::<String>()
 }
 
 pub(crate) fn camelize(str: &str) -> String {

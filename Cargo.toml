@@ -2,7 +2,7 @@
 author = "xxXyh1908"
 edition = "2021"
 name = "swc_plugin_transform_vue3_jsx"
-version = "0.1.0"
+version = "0.1.2"
 
 [lib]
 crate-type = ["cdylib"]

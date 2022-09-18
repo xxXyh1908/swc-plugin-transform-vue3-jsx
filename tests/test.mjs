@@ -11,7 +11,7 @@ export const FormTest = defineComponent({
       <input type="checkbox" v-model={[value]} />
       <input type={type} v-model={[value, "modelValue", ["lazy"]]} />
       <select v-model_number={[value, ["modifier", "lazy"]]} >{{ default: () => <div>A</div>, bar: () => <span>B</span> }}{}</select>
-      <Input v-directive:arg_mod={dir} v-model={value1} v-models_modifier={[value1, [value2, "value"]]} ></Input>
+      <Input v-directive:arg_mod={dir} v-model={value1} v-models_modifier={[[value1, dyn.arg], [value2, "value"]]} ></Input>
       <Input v-html={html} v-text={text}>input</Input>
     </>
   },
@@ -35,7 +35,7 @@ export const Layout = defineComponent({
 
 export default defineComponent({
   render() {
-    return <NButton onA={a} onA={b} on={testTransformOn} v-slots={slots} v-slots={{icon: () => <Icon/>}} >{{ default: () => 'Star Kirby' }}</NButton>
+    return <NButton onA={a} onA={b} on={testTransformOn} v-slot:v-slot-test={function () {}} v-slots={slots} v-slots={{icon: () => <Icon/>}} >{{ default: () => 'Star Kirby' }}</NButton>
   },
 })
 `
@@ -74,7 +74,8 @@ transform(code, {
             transformOn: true,
             optimize: true,
             reactStyle: true,
-            transformOnUpdateEvent: true
+            transformOnUpdateEvent: true,
+            transformVSlot: true
           }
         ]
       ]

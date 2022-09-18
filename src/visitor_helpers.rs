@@ -5,18 +5,18 @@ use std::{
 
 use linked_hash_map::LinkedHashMap;
 use swc_core::{
-    common::DUMMY_SP,
+    common::{Span, DUMMY_SP},
     ecma::{
         ast::{
             self, ArrayPat, ArrowExpr, AssignPat, BigInt, BindingIdent, BlockStmt, BlockStmtOrExpr,
-            Bool, Callee, ClassMethod, ComputedPropName, Constructor, Decl, Expr, FnDecl, FnExpr,
-            ForInStmt, ForOfStmt, ForStmt, GetterProp, Ident, ImportSpecifier, JSXElement,
-            JSXFragment, JSXMemberExpr, JSXObject, JSXText, KeyValueProp, Lit, MemberExpr,
-            MemberProp, MethodProp, Module, ModuleDecl, ModuleItem, Null, Number, ObjectPat,
-            ObjectPatProp, Param, ParamOrTsParamProp, Pat, PrivateMethod, Prop, PropName,
-            ReturnStmt, Script, SetterProp, SpreadElement, Stmt, Str, TsModuleDecl, TsModuleName,
-            TsNamespaceBody, TsParamPropParam, UnaryExpr, UnaryOp, VarDecl, VarDeclKind,
-            VarDeclOrExpr, VarDeclOrPat, VarDeclarator,
+            Bool, Callee, ClassDecl, ClassExpr, ClassMethod, ComputedPropName, Constructor, Decl,
+            Expr, FnDecl, FnExpr, ForInStmt, ForOfStmt, ForStmt, GetterProp, Ident,
+            ImportSpecifier, JSXElement, JSXFragment, JSXMemberExpr, JSXNamespacedName, JSXObject,
+            JSXText, KeyValueProp, Lit, MemberExpr, MemberProp, MethodProp, Module, ModuleDecl,
+            ModuleItem, Null, Number, ObjectPat, ObjectPatProp, Param, ParamOrTsParamProp, Pat,
+            PrivateMethod, Prop, PropName, ReturnStmt, Script, SetterProp, SpreadElement, Stmt,
+            Str, TsModuleDecl, TsModuleName, TsNamespaceBody, TsParamPropParam, UnaryExpr, UnaryOp,
+            VarDecl, VarDeclKind, VarDeclOrExpr, VarDeclOrPat, VarDeclarator,
         },
         atoms::js_word,
         utils::private_ident,
@@ -24,27 +24,32 @@ use swc_core::{
     },
 };
 
+#[derive(Debug, PartialEq, Hash, Clone)]
 pub enum JsxTag {
     Fragment(Expr),
     String(String),
     Expr(Expr),
 }
 
+#[derive(Debug, PartialEq, Hash, Clone)]
 pub enum PropsItemMapItem {
     Normal(Expr),
     Accessor((Option<Box<Prop>>, Option<Box<Prop>>)),
 }
 
+#[derive(Debug, PartialEq, Hash, Clone)]
 pub enum PropsItem {
     Map(LinkedHashMap<ObjectKey, PropsItemMapItem>),
     Spread(SpreadElement),
 }
 
+#[derive(Debug, Clone)]
 pub enum ObjectKey {
     Str(String),
     Expr(Expr),
 }
 
+#[derive(Debug, Clone)]
 pub enum VarDeclRecord {
     Func((HashSet<Ident>, HashMap<String, Ident>)),
     Block((HashSet<Ident>, HashMap<String, Ident>)),
@@ -597,9 +602,34 @@ pub(crate) fn create_key_value_prop(key: String, value: Expr) -> Prop {
     create_key_value_prop_box(key, Box::new(value))
 }
 
+pub(crate) fn create_dyn_key_value_prop(key: Expr, value: Expr) -> Prop {
+    create_dyn_key_value_prop_box(key, Box::new(value))
+}
+
 pub(crate) fn create_key_value_prop_box(key: String, value: Box<Expr>) -> Prop {
     Prop::KeyValue(KeyValueProp {
         key: PropName::Str(Str::from(key)),
+        value,
+    })
+}
+
+pub(crate) fn create_dyn_key_value_prop_box(key: Expr, value: Box<Expr>) -> Prop {
+    Prop::KeyValue(KeyValueProp {
+        key: if let Expr::Lit(lit) = key {
+            if let Lit::Str(key) = lit {
+                PropName::Str(Str::from(key))
+            } else {
+                PropName::Computed(ComputedPropName {
+                    span: DUMMY_SP,
+                    expr: Box::new(Expr::Lit(lit)),
+                })
+            }
+        } else {
+            PropName::Computed(ComputedPropName {
+                span: DUMMY_SP,
+                expr: Box::new(key),
+            })
+        },
         value,
     })
 }
@@ -1074,4 +1104,462 @@ pub(crate) fn generate_var_decl_stmts(
     }
 
     stmts
+}
+
+pub(crate) trait AstSpanAccessor {
+    fn get_span(&self) -> Span;
+    fn set_span(&mut self, span: Span);
+}
+
+macro_rules! impl_get_span {
+    ($struct:path) => {
+        impl AstSpanAccessor for $struct {
+            #[inline]
+            fn get_span(&self) -> Span {
+                self.span.clone()
+            }
+
+            #[inline]
+            fn set_span(&mut self, _span: Span) {
+                self.span = _span;
+            }
+        }
+    };
+}
+
+impl_get_span!(swc_core::ecma::ast::ArrayLit);
+impl_get_span!(swc_core::ecma::ast::ArrayPat);
+impl_get_span!(swc_core::ecma::ast::ArrowExpr);
+impl_get_span!(swc_core::ecma::ast::AssignExpr);
+impl_get_span!(swc_core::ecma::ast::AssignPat);
+impl_get_span!(swc_core::ecma::ast::AssignPatProp);
+impl_get_span!(swc_core::ecma::ast::AwaitExpr);
+impl_get_span!(swc_core::ecma::ast::BigInt);
+impl_get_span!(swc_core::ecma::ast::BinExpr);
+impl_get_span!(swc_core::ecma::ast::BlockStmt);
+impl_get_span!(swc_core::ecma::ast::Bool);
+impl_get_span!(swc_core::ecma::ast::BreakStmt);
+impl_get_span!(swc_core::ecma::ast::CallExpr);
+impl_get_span!(swc_core::ecma::ast::CatchClause);
+impl_get_span!(swc_core::ecma::ast::Class);
+impl_get_span!(swc_core::ecma::ast::ClassMethod);
+impl_get_span!(swc_core::ecma::ast::ClassProp);
+impl_get_span!(swc_core::ecma::ast::ComputedPropName);
+impl_get_span!(swc_core::ecma::ast::CondExpr);
+impl_get_span!(swc_core::ecma::ast::Constructor);
+impl_get_span!(swc_core::ecma::ast::ContinueStmt);
+impl_get_span!(swc_core::ecma::ast::DebuggerStmt);
+impl_get_span!(swc_core::ecma::ast::Decorator);
+impl_get_span!(swc_core::ecma::ast::DoWhileStmt);
+impl_get_span!(swc_core::ecma::ast::EmptyStmt);
+impl_get_span!(swc_core::ecma::ast::ExportAll);
+impl_get_span!(swc_core::ecma::ast::ExportDecl);
+impl_get_span!(swc_core::ecma::ast::ExportDefaultDecl);
+impl_get_span!(swc_core::ecma::ast::ExportDefaultExpr);
+impl_get_span!(swc_core::ecma::ast::ExportNamedSpecifier);
+impl_get_span!(swc_core::ecma::ast::ExportNamespaceSpecifier);
+impl_get_span!(swc_core::ecma::ast::ForInStmt);
+impl_get_span!(swc_core::ecma::ast::ForOfStmt);
+impl_get_span!(swc_core::ecma::ast::ForStmt);
+impl_get_span!(swc_core::ecma::ast::Function);
+impl_get_span!(swc_core::ecma::ast::GetterProp);
+impl_get_span!(swc_core::ecma::ast::Ident);
+impl_get_span!(swc_core::ecma::ast::IfStmt);
+impl_get_span!(swc_core::ecma::ast::Import);
+impl_get_span!(swc_core::ecma::ast::ImportDecl);
+impl_get_span!(swc_core::ecma::ast::ImportDefaultSpecifier);
+impl_get_span!(swc_core::ecma::ast::ImportNamedSpecifier);
+impl_get_span!(swc_core::ecma::ast::ImportStarAsSpecifier);
+impl_get_span!(swc_core::ecma::ast::Invalid);
+impl_get_span!(swc_core::ecma::ast::JSXClosingElement);
+impl_get_span!(swc_core::ecma::ast::JSXClosingFragment);
+impl_get_span!(swc_core::ecma::ast::JSXElement);
+impl_get_span!(swc_core::ecma::ast::JSXEmptyExpr);
+impl_get_span!(swc_core::ecma::ast::JSXExprContainer);
+impl_get_span!(swc_core::ecma::ast::JSXFragment);
+impl_get_span!(swc_core::ecma::ast::JSXOpeningElement);
+impl_get_span!(swc_core::ecma::ast::JSXOpeningFragment);
+impl_get_span!(swc_core::ecma::ast::JSXSpreadChild);
+impl_get_span!(swc_core::ecma::ast::JSXText);
+impl_get_span!(swc_core::ecma::ast::MemberExpr);
+impl_get_span!(swc_core::ecma::ast::MetaPropExpr);
+impl_get_span!(swc_core::ecma::ast::Module);
+impl_get_span!(swc_core::ecma::ast::NamedExport);
+impl_get_span!(swc_core::ecma::ast::NewExpr);
+impl_get_span!(swc_core::ecma::ast::Null);
+impl_get_span!(swc_core::ecma::ast::Number);
+impl_get_span!(swc_core::ecma::ast::ObjectLit);
+impl_get_span!(swc_core::ecma::ast::ObjectPat);
+impl_get_span!(swc_core::ecma::ast::OptCall);
+impl_get_span!(swc_core::ecma::ast::OptChainExpr);
+impl_get_span!(swc_core::ecma::ast::Param);
+impl_get_span!(swc_core::ecma::ast::ParenExpr);
+impl_get_span!(swc_core::ecma::ast::PrivateMethod);
+impl_get_span!(swc_core::ecma::ast::PrivateName);
+impl_get_span!(swc_core::ecma::ast::PrivateProp);
+impl_get_span!(swc_core::ecma::ast::Regex);
+impl_get_span!(swc_core::ecma::ast::ReservedUnused);
+impl_get_span!(swc_core::ecma::ast::RestPat);
+impl_get_span!(swc_core::ecma::ast::ReturnStmt);
+impl_get_span!(swc_core::ecma::ast::Script);
+impl_get_span!(swc_core::ecma::ast::SeqExpr);
+impl_get_span!(swc_core::ecma::ast::SetterProp);
+impl_get_span!(swc_core::ecma::ast::StaticBlock);
+impl_get_span!(swc_core::ecma::ast::Str);
+impl_get_span!(swc_core::ecma::ast::Super);
+impl_get_span!(swc_core::ecma::ast::SuperPropExpr);
+impl_get_span!(swc_core::ecma::ast::SwitchCase);
+impl_get_span!(swc_core::ecma::ast::SwitchStmt);
+impl_get_span!(swc_core::ecma::ast::TaggedTpl);
+impl_get_span!(swc_core::ecma::ast::ThisExpr);
+impl_get_span!(swc_core::ecma::ast::ThrowStmt);
+impl_get_span!(swc_core::ecma::ast::Tpl);
+impl_get_span!(swc_core::ecma::ast::TplElement);
+impl_get_span!(swc_core::ecma::ast::TryStmt);
+impl_get_span!(swc_core::ecma::ast::TsArrayType);
+impl_get_span!(swc_core::ecma::ast::TsAsExpr);
+impl_get_span!(swc_core::ecma::ast::TsCallSignatureDecl);
+impl_get_span!(swc_core::ecma::ast::TsConditionalType);
+impl_get_span!(swc_core::ecma::ast::TsConstAssertion);
+impl_get_span!(swc_core::ecma::ast::TsConstructSignatureDecl);
+impl_get_span!(swc_core::ecma::ast::TsConstructorType);
+impl_get_span!(swc_core::ecma::ast::TsEnumDecl);
+impl_get_span!(swc_core::ecma::ast::TsEnumMember);
+impl_get_span!(swc_core::ecma::ast::TsExportAssignment);
+impl_get_span!(swc_core::ecma::ast::TsExprWithTypeArgs);
+impl_get_span!(swc_core::ecma::ast::TsExternalModuleRef);
+impl_get_span!(swc_core::ecma::ast::TsFnType);
+impl_get_span!(swc_core::ecma::ast::TsGetterSignature);
+impl_get_span!(swc_core::ecma::ast::TsImportEqualsDecl);
+impl_get_span!(swc_core::ecma::ast::TsImportType);
+impl_get_span!(swc_core::ecma::ast::TsIndexSignature);
+impl_get_span!(swc_core::ecma::ast::TsIndexedAccessType);
+impl_get_span!(swc_core::ecma::ast::TsInferType);
+impl_get_span!(swc_core::ecma::ast::TsInstantiation);
+impl_get_span!(swc_core::ecma::ast::TsInterfaceBody);
+impl_get_span!(swc_core::ecma::ast::TsInterfaceDecl);
+impl_get_span!(swc_core::ecma::ast::TsIntersectionType);
+impl_get_span!(swc_core::ecma::ast::TsKeywordType);
+impl_get_span!(swc_core::ecma::ast::TsLitType);
+impl_get_span!(swc_core::ecma::ast::TsMappedType);
+impl_get_span!(swc_core::ecma::ast::TsMethodSignature);
+impl_get_span!(swc_core::ecma::ast::TsModuleBlock);
+impl_get_span!(swc_core::ecma::ast::TsModuleDecl);
+impl_get_span!(swc_core::ecma::ast::TsNamespaceDecl);
+impl_get_span!(swc_core::ecma::ast::TsNamespaceExportDecl);
+impl_get_span!(swc_core::ecma::ast::TsNonNullExpr);
+impl_get_span!(swc_core::ecma::ast::TsOptionalType);
+impl_get_span!(swc_core::ecma::ast::TsParamProp);
+impl_get_span!(swc_core::ecma::ast::TsParenthesizedType);
+impl_get_span!(swc_core::ecma::ast::TsPropertySignature);
+impl_get_span!(swc_core::ecma::ast::TsRestType);
+impl_get_span!(swc_core::ecma::ast::TsSetterSignature);
+impl_get_span!(swc_core::ecma::ast::TsThisType);
+impl_get_span!(swc_core::ecma::ast::TsTplLitType);
+impl_get_span!(swc_core::ecma::ast::TsTupleElement);
+impl_get_span!(swc_core::ecma::ast::TsTupleType);
+impl_get_span!(swc_core::ecma::ast::TsTypeAliasDecl);
+impl_get_span!(swc_core::ecma::ast::TsTypeAnn);
+impl_get_span!(swc_core::ecma::ast::TsTypeAssertion);
+impl_get_span!(swc_core::ecma::ast::TsTypeLit);
+impl_get_span!(swc_core::ecma::ast::TsTypeOperator);
+impl_get_span!(swc_core::ecma::ast::TsTypeParam);
+impl_get_span!(swc_core::ecma::ast::TsTypeParamDecl);
+impl_get_span!(swc_core::ecma::ast::TsTypeParamInstantiation);
+impl_get_span!(swc_core::ecma::ast::TsTypePredicate);
+impl_get_span!(swc_core::ecma::ast::TsTypeQuery);
+impl_get_span!(swc_core::ecma::ast::TsTypeRef);
+impl_get_span!(swc_core::ecma::ast::TsUnionType);
+impl_get_span!(swc_core::ecma::ast::UnaryExpr);
+impl_get_span!(swc_core::ecma::ast::UpdateExpr);
+impl_get_span!(swc_core::ecma::ast::VarDecl);
+impl_get_span!(swc_core::ecma::ast::VarDeclarator);
+impl_get_span!(swc_core::ecma::ast::WhileStmt);
+impl_get_span!(swc_core::ecma::ast::WithStmt);
+impl_get_span!(swc_core::ecma::ast::YieldExpr);
+
+impl AstSpanAccessor for BindingIdent {
+    #[inline]
+    fn get_span(&self) -> Span {
+        self.id.get_span()
+    }
+
+    #[inline]
+    fn set_span(&mut self, _span: Span) {
+        self.id.set_span(_span);
+    }
+}
+
+impl AstSpanAccessor for FnExpr {
+    #[inline]
+    fn get_span(&self) -> Span {
+        self.function.span.clone()
+    }
+
+    #[inline]
+    fn set_span(&mut self, _span: Span) {
+        self.function.span = _span;
+    }
+}
+
+impl AstSpanAccessor for ClassExpr {
+    #[inline]
+    fn get_span(&self) -> Span {
+        self.class.span.clone()
+    }
+
+    #[inline]
+    fn set_span(&mut self, _span: Span) {
+        self.class.span = _span;
+    }
+}
+
+impl AstSpanAccessor for FnDecl {
+    #[inline]
+    fn get_span(&self) -> Span {
+        self.function.span.clone()
+    }
+
+    #[inline]
+    fn set_span(&mut self, _span: Span) {
+        self.function.span = _span;
+    }
+}
+
+impl AstSpanAccessor for ClassDecl {
+    #[inline]
+    fn get_span(&self) -> Span {
+        self.class.span.clone()
+    }
+
+    #[inline]
+    fn set_span(&mut self, _span: Span) {
+        self.class.span = _span;
+    }
+}
+
+impl AstSpanAccessor for Lit {
+    fn get_span(&self) -> Span {
+        match self {
+            Lit::Str(lit) => lit.get_span(),
+            Lit::Bool(lit) => lit.get_span(),
+            Lit::Null(lit) => lit.get_span(),
+            Lit::Num(lit) => lit.get_span(),
+            Lit::BigInt(lit) => lit.get_span(),
+            Lit::Regex(lit) => lit.get_span(),
+            Lit::JSXText(lit) => lit.get_span(),
+        }
+    }
+
+    fn set_span(&mut self, _span: Span) {
+        match self {
+            Lit::Str(lit) => lit.set_span(_span),
+            Lit::Bool(lit) => lit.set_span(_span),
+            Lit::Null(lit) => lit.set_span(_span),
+            Lit::Num(lit) => lit.set_span(_span),
+            Lit::BigInt(lit) => lit.set_span(_span),
+            Lit::Regex(lit) => lit.set_span(_span),
+            Lit::JSXText(lit) => lit.set_span(_span),
+        }
+    }
+}
+
+impl AstSpanAccessor for JSXObject {
+    fn get_span(&self) -> Span {
+        match self {
+            JSXObject::JSXMemberExpr(obj) => obj.get_span(),
+            JSXObject::Ident(ident) => ident.get_span(),
+        }
+    }
+
+    fn set_span(&mut self, _span: Span) {
+        match self {
+            JSXObject::JSXMemberExpr(obj) => obj.set_span(_span),
+            JSXObject::Ident(ident) => ident.set_span(_span),
+        }
+    }
+}
+
+impl AstSpanAccessor for JSXMemberExpr {
+    fn get_span(&self) -> Span {
+        let obj_span = self.obj.get_span();
+        Span {
+            lo: self.prop.get_span().lo,
+            ..obj_span
+        }
+    }
+
+    fn set_span(&mut self, _span: Span) {}
+}
+
+impl AstSpanAccessor for JSXNamespacedName {
+    fn get_span(&self) -> Span {
+        let name_span = self.name.get_span();
+        Span {
+            lo: self.ns.get_span().lo,
+            ..name_span
+        }
+    }
+
+    fn set_span(&mut self, _span: Span) {}
+}
+
+impl AstSpanAccessor for Expr {
+    fn get_span(&self) -> Span {
+        match self {
+            Expr::This(expr) => expr.get_span(),
+            Expr::Array(expr) => expr.get_span(),
+            Expr::Object(expr) => expr.get_span(),
+            Expr::Fn(expr) => expr.get_span(),
+            Expr::Unary(expr) => expr.get_span(),
+            Expr::Update(expr) => expr.get_span(),
+            Expr::Bin(expr) => expr.get_span(),
+            Expr::Assign(expr) => expr.get_span(),
+            Expr::Member(expr) => expr.get_span(),
+            Expr::SuperProp(expr) => expr.get_span(),
+            Expr::Cond(expr) => expr.get_span(),
+            Expr::Call(expr) => expr.get_span(),
+            Expr::New(expr) => expr.get_span(),
+            Expr::Seq(expr) => expr.get_span(),
+            Expr::Ident(expr) => expr.get_span(),
+            Expr::Lit(expr) => expr.get_span(),
+            Expr::Tpl(expr) => expr.get_span(),
+            Expr::TaggedTpl(expr) => expr.get_span(),
+            Expr::Arrow(expr) => expr.get_span(),
+            Expr::Class(expr) => expr.get_span(),
+            Expr::Yield(expr) => expr.get_span(),
+            Expr::MetaProp(expr) => expr.get_span(),
+            Expr::Await(expr) => expr.get_span(),
+            Expr::Paren(expr) => expr.get_span(),
+            Expr::JSXMember(expr) => expr.get_span(),
+            Expr::JSXNamespacedName(expr) => expr.get_span(),
+            Expr::JSXEmpty(expr) => expr.get_span(),
+            Expr::JSXElement(expr) => expr.get_span(),
+            Expr::JSXFragment(expr) => expr.get_span(),
+            Expr::TsTypeAssertion(expr) => expr.get_span(),
+            Expr::TsConstAssertion(expr) => expr.get_span(),
+            Expr::TsNonNull(expr) => expr.get_span(),
+            Expr::TsAs(expr) => expr.get_span(),
+            Expr::TsInstantiation(expr) => expr.get_span(),
+            Expr::PrivateName(expr) => expr.get_span(),
+            Expr::OptChain(expr) => expr.get_span(),
+            Expr::Invalid(expr) => expr.get_span(),
+        }
+    }
+
+    fn set_span(&mut self, _span: Span) {
+        match self {
+            Expr::This(expr) => expr.set_span(_span),
+            Expr::Array(expr) => expr.set_span(_span),
+            Expr::Object(expr) => expr.set_span(_span),
+            Expr::Fn(expr) => expr.set_span(_span),
+            Expr::Unary(expr) => expr.set_span(_span),
+            Expr::Update(expr) => expr.set_span(_span),
+            Expr::Bin(expr) => expr.set_span(_span),
+            Expr::Assign(expr) => expr.set_span(_span),
+            Expr::Member(expr) => expr.set_span(_span),
+            Expr::SuperProp(expr) => expr.set_span(_span),
+            Expr::Cond(expr) => expr.set_span(_span),
+            Expr::Call(expr) => expr.set_span(_span),
+            Expr::New(expr) => expr.set_span(_span),
+            Expr::Seq(expr) => expr.set_span(_span),
+            Expr::Ident(expr) => expr.set_span(_span),
+            Expr::Lit(expr) => expr.set_span(_span),
+            Expr::Tpl(expr) => expr.set_span(_span),
+            Expr::TaggedTpl(expr) => expr.set_span(_span),
+            Expr::Arrow(expr) => expr.set_span(_span),
+            Expr::Class(expr) => expr.set_span(_span),
+            Expr::Yield(expr) => expr.set_span(_span),
+            Expr::MetaProp(expr) => expr.set_span(_span),
+            Expr::Await(expr) => expr.set_span(_span),
+            Expr::Paren(expr) => expr.set_span(_span),
+            Expr::JSXMember(expr) => expr.set_span(_span),
+            Expr::JSXNamespacedName(expr) => expr.set_span(_span),
+            Expr::JSXEmpty(expr) => expr.set_span(_span),
+            Expr::JSXElement(expr) => expr.set_span(_span),
+            Expr::JSXFragment(expr) => expr.set_span(_span),
+            Expr::TsTypeAssertion(expr) => expr.set_span(_span),
+            Expr::TsConstAssertion(expr) => expr.set_span(_span),
+            Expr::TsNonNull(expr) => expr.set_span(_span),
+            Expr::TsAs(expr) => expr.set_span(_span),
+            Expr::TsInstantiation(expr) => expr.set_span(_span),
+            Expr::PrivateName(expr) => expr.set_span(_span),
+            Expr::OptChain(expr) => expr.set_span(_span),
+            Expr::Invalid(expr) => expr.set_span(_span),
+        }
+    }
+}
+
+impl AstSpanAccessor for Decl {
+    fn get_span(&self) -> Span {
+        match self {
+            Decl::Class(decl) => decl.get_span(),
+            Decl::Fn(decl) => decl.get_span(),
+            Decl::Var(decl) => decl.get_span(),
+            Decl::TsInterface(decl) => decl.get_span(),
+            Decl::TsTypeAlias(decl) => decl.get_span(),
+            Decl::TsEnum(decl) => decl.get_span(),
+            Decl::TsModule(decl) => decl.get_span(),
+        }
+    }
+
+    fn set_span(&mut self, _span: Span) {
+        match self {
+            Decl::Class(decl) => decl.set_span(_span),
+            Decl::Fn(decl) => decl.set_span(_span),
+            Decl::Var(decl) => decl.set_span(_span),
+            Decl::TsInterface(decl) => decl.set_span(_span),
+            Decl::TsTypeAlias(decl) => decl.set_span(_span),
+            Decl::TsEnum(decl) => decl.set_span(_span),
+            Decl::TsModule(decl) => decl.set_span(_span),
+        }
+    }
+}
+
+impl AstSpanAccessor for Pat {
+    fn get_span(&self) -> Span {
+        match self {
+            Pat::Ident(pat) => pat.get_span(),
+            Pat::Array(pat) => pat.get_span(),
+            Pat::Rest(pat) => pat.get_span(),
+            Pat::Object(pat) => pat.get_span(),
+            Pat::Assign(pat) => pat.get_span(),
+            Pat::Invalid(pat) => pat.get_span(),
+            Pat::Expr(pat) => pat.get_span(),
+        }
+    }
+
+    fn set_span(&mut self, _span: Span) {
+        match self {
+            Pat::Ident(pat) => pat.set_span(_span),
+            Pat::Array(pat) => pat.set_span(_span),
+            Pat::Rest(pat) => pat.set_span(_span),
+            Pat::Object(pat) => pat.set_span(_span),
+            Pat::Assign(pat) => pat.set_span(_span),
+            Pat::Invalid(pat) => pat.set_span(_span),
+            Pat::Expr(pat) => pat.set_span(_span),
+        }
+    }
+}
+
+impl AstSpanAccessor for PropName {
+    fn get_span(&self) -> Span {
+        match self {
+            PropName::Ident(name) => name.get_span(),
+            PropName::Str(name) => name.get_span(),
+            PropName::Num(name) => name.get_span(),
+            PropName::Computed(name) => name.get_span(),
+            PropName::BigInt(name) => name.get_span(),
+        }
+    }
+
+    fn set_span(&mut self, _span: Span) {
+        match self {
+            PropName::Ident(name) => name.set_span(_span),
+            PropName::Str(name) => name.set_span(_span),
+            PropName::Num(name) => name.set_span(_span),
+            PropName::Computed(name) => name.set_span(_span),
+            PropName::BigInt(name) => name.set_span(_span),
+        }
+    }
 }

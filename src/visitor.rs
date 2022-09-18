@@ -9,19 +9,20 @@ use regex::Regex;
 use swc_core::{
     common::{
         comments::{Comments, NoopComments},
-        DUMMY_SP, Span,
+        Span, DUMMY_SP,
     },
     ecma::{
         ast::{
-            ArrayLit, ArrowExpr, AssignPat, BindingIdent, BlockStmt, Callee, CallExpr, ClassExpr, ClassMethod,
-            Constructor, Decl, ExportSpecifier, Expr, ExprOrSpread, FnDecl, FnExpr, ForInStmt,
-            ForOfStmt, ForStmt, Function, GetterProp, Ident, ImportDecl, ImportNamedSpecifier,
-            ImportSpecifier, JSXAttrName, JSXAttrOrSpread, JSXAttrValue, JSXElement,
-            JSXElementChild, JSXElementName, JSXExpr, JSXExprContainer, JSXFragment, JSXText, KeyValuePatProp, KeyValueProp, Lit,
-            MethodProp, Module, ModuleDecl, ModuleExportName, ModuleItem, Number, ObjectLit,
-            ObjectPat, ObjectPatProp, Pat, PrivateMethod, Program, Prop,
-            PropName, PropOrSpread, Script, SeqExpr, SetterProp, SpreadElement, Stmt,
-            Str, ThisExpr, TsExportAssignment, TsModuleDecl, UnaryOp, VarDecl, VarDeclarator, VarDeclKind,
+            ArrayLit, ArrowExpr, AssignPat, BinExpr, BinaryOp, BindingIdent, BlockStmt, CallExpr,
+            Callee, ClassExpr, ClassMethod, ComputedPropName, Constructor, Decl, ExportSpecifier,
+            Expr, ExprOrSpread, FnDecl, FnExpr, ForInStmt, ForOfStmt, ForStmt, Function,
+            GetterProp, Ident, ImportDecl, ImportNamedSpecifier, ImportSpecifier, JSXAttrName,
+            JSXAttrOrSpread, JSXAttrValue, JSXElement, JSXElementChild, JSXElementName, JSXExpr,
+            JSXExprContainer, JSXFragment, JSXText, KeyValuePatProp, KeyValueProp, Lit, MethodProp,
+            Module, ModuleDecl, ModuleExportName, ModuleItem, Number, ObjectLit, ObjectPat,
+            ObjectPatProp, Pat, PrivateMethod, Program, Prop, PropName, PropOrSpread, Script,
+            SeqExpr, SetterProp, SpreadElement, Stmt, Str, ThisExpr, TsExportAssignment,
+            TsModuleDecl, UnaryOp, VarDecl, VarDeclKind, VarDeclarator,
         },
         atoms::js_word,
         utils::{private_ident, quote_ident},
@@ -30,22 +31,22 @@ use swc_core::{
     quote,
 };
 
+use crate::visitor_helpers::{prepend_var_decls_into_module_items, AstSpanAccessor};
 use crate::{
     constants::{is_builtin_component, is_known_tag},
     flags::{PatchFlags, SlotFlags},
     hashmap_str_key_get_mut_default,
-    utils::{camelize, camelize_upper_first, lower_first, StringFilter, upper_first},
+    utils::{camelize, camelize_upper_first, lower_first, upper_first, StringFilter},
     visitor_helpers::{
         ast_ident_to_string, ast_str_to_string, clone_ident, clone_lit, create_ident,
-        create_key_value_prop, create_key_value_prop_box, create_null_expr, create_private_ident,
-        create_true_expr, create_void_zero_expr, DrainValues,
-        find_decl_ident_from_module_items, find_decl_ident_from_pattern, find_decl_ident_from_pattern0,
-        find_decl_ident_from_stmts, ForLike, FunctionScope, is_constant_expr,
-        is_define_component_expr, is_script_top, jsx_member_ref_to_member_expr, JsxTag, ObjectKey, PropsItem, PropsItemMapItem,
-        unwrap_expr, unwrap_expr_move, VarDeclRecord,
+        create_key_value_prop, create_null_expr, create_private_ident, create_true_expr,
+        create_void_zero_expr, find_decl_ident_from_module_items, find_decl_ident_from_pattern,
+        find_decl_ident_from_pattern0, find_decl_ident_from_stmts, is_constant_expr,
+        is_define_component_expr, is_script_top, jsx_member_ref_to_member_expr, unwrap_expr,
+        unwrap_expr_move, DrainValues, ForLike, FunctionScope, JsxTag, ObjectKey, PropsItem,
+        PropsItemMapItem, VarDeclRecord,
     },
 };
-use crate::visitor_helpers::prepend_var_decls_into_module_items;
 
 const HELPER_ID: &str = "swc-plugin-transform-vue3-jsx/helpers";
 
@@ -65,6 +66,7 @@ pub struct JSXTransformVisitorConfig {
     pub merge_props: bool,
     pub react_style: bool,
     pub transform_on: bool,
+    pub transform_v_slot: bool,
     pub transform_on_update_event: bool,
     pub enable_object_slots: bool,
     pub file_name: String,
@@ -94,6 +96,107 @@ struct DefineComponentInfo {
     exports: Vec<String>,
 }
 
+#[derive(Debug, PartialEq, Hash, Clone)]
+enum VModelArgument {
+    Str(String),
+    Expr(Box<Expr>),
+}
+
+impl VModelArgument {
+    fn into_expr(self) -> Expr {
+        match self {
+            VModelArgument::Str(str) => Expr::Lit(Lit::Str(Str::from(str))),
+            VModelArgument::Expr(expr) => *expr,
+        }
+    }
+
+    fn into_expr_box(self) -> Box<Expr> {
+        match self {
+            VModelArgument::Str(str) => Box::new(Expr::Lit(Lit::Str(Str::from(str)))),
+            VModelArgument::Expr(expr) => expr,
+        }
+    }
+
+    fn to_expr(&self) -> Expr {
+        match self {
+            VModelArgument::Str(str) => Expr::Lit(Lit::Str(Str::from(str.to_string()))),
+            VModelArgument::Expr(expr) => {
+                let expr_box = expr.clone();
+                *expr_box
+            }
+        }
+    }
+
+    fn to_expr_box(&self) -> Box<Expr> {
+        match self {
+            VModelArgument::Str(str) => Box::new(Expr::Lit(Lit::Str(Str::from(str.to_string())))),
+            VModelArgument::Expr(expr) => expr.clone(),
+        }
+    }
+
+    fn to_prop_name(&self) -> PropName {
+        match self {
+            VModelArgument::Str(str) => PropName::Str(Str::from(str.to_string())),
+            VModelArgument::Expr(expr) => PropName::Computed(ComputedPropName {
+                span: expr.as_ref().get_span(),
+                expr: expr.clone(),
+            }),
+        }
+    }
+
+    fn to_prop_name_with_prefix(&self, prefix: &str) -> PropName {
+        match self {
+            VModelArgument::Str(str) => PropName::Str(Str::from(String::from(prefix) + str)),
+            VModelArgument::Expr(expr) => PropName::Computed(ComputedPropName {
+                span: expr.as_ref().get_span(),
+                expr: Box::new(Expr::Bin(BinExpr {
+                    span: DUMMY_SP,
+                    op: BinaryOp::Add,
+                    left: Box::new(Expr::Lit(Lit::Str(Str::from(prefix.to_string())))),
+                    right: expr.clone(),
+                })),
+            }),
+        }
+    }
+
+    fn to_prop_name_with_suffix(&self, suffix: &str) -> PropName {
+        match self {
+            VModelArgument::Str(str) => PropName::Str(Str::from(String::from(str) + suffix)),
+            VModelArgument::Expr(expr) => PropName::Computed(ComputedPropName {
+                span: expr.as_ref().get_span(),
+                expr: Box::new(Expr::Bin(BinExpr {
+                    span: DUMMY_SP,
+                    op: BinaryOp::Add,
+                    left: expr.clone(),
+                    right: Box::new(Expr::Lit(Lit::Str(Str::from(suffix.to_string())))),
+                })),
+            }),
+        }
+    }
+
+    fn to_prop_name_with_prefix_suffix(&self, prefix: &str, suffix: &str) -> PropName {
+        match self {
+            VModelArgument::Str(str) => {
+                PropName::Str(Str::from(String::from(prefix) + str + suffix))
+            }
+            VModelArgument::Expr(expr) => PropName::Computed(ComputedPropName {
+                span: expr.as_ref().get_span(),
+                expr: Box::new(Expr::Bin(BinExpr {
+                    span: DUMMY_SP,
+                    op: BinaryOp::Add,
+                    left: Box::new(Expr::Bin(BinExpr {
+                        span: DUMMY_SP,
+                        op: BinaryOp::Add,
+                        left: Box::new(Expr::Lit(Lit::Str(Str::from(prefix.to_string())))),
+                        right: expr.clone(),
+                    })),
+                    right: Box::new(Expr::Lit(Lit::Str(Str::from(suffix.to_string())))),
+                })),
+            }),
+        }
+    }
+}
+
 impl StringFilter for NoopFilter {}
 
 impl Default for JSXTransformVisitorConfig {
@@ -101,12 +204,13 @@ impl Default for JSXTransformVisitorConfig {
         Self {
             pragma: None,
             is_custom_element: Box::new(NoopFilter {}),
-            hmr: true,
-            optimize: true,
+            hmr: false,
+            optimize: false,
             merge_props: true,
-            react_style: true,
+            react_style: false,
             transform_on: true,
-            transform_on_update_event: true,
+            transform_v_slot: false,
+            transform_on_update_event: false,
             enable_object_slots: true,
             file_name: "module.tsx".to_string(),
         }
@@ -432,7 +536,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
             array
         } else {
             ArrayLit {
-                span: DUMMY_SP,
+                span: expr.get_span(),
                 elems: vec![Some(ExprOrSpread::from(expr))],
             }
         };
@@ -588,7 +692,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
                 },
                 JSXElementChild::JSXSpreadChild(spread_child) => {
                     elements.push(Some(ExprOrSpread {
-                        spread: Some(spread_child.span),
+                        spread: Some(spread_child.get_span()),
                         expr: spread_child.expr,
                     }))
                 }
@@ -613,7 +717,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
             JSXElementName::Ident(ident) => {
                 if ident.sym == js_word!("this") {
                     return JsxTag::Expr(Expr::This(ThisExpr {
-                        span: ident.span.clone(),
+                        span: ident.get_span(),
                     }));
                 }
 
@@ -624,7 +728,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
 
                 tag_ident = Some(clone_ident(ident));
 
-                (name, ident.span.clone())
+                (name, ident.get_span())
             }
             JSXElementName::JSXMemberExpr(expr) => {
                 return JsxTag::Expr(Expr::Member(jsx_member_ref_to_member_expr(expr)));
@@ -633,7 +737,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
                 let ns = &name.ns;
                 let name = &name.name;
 
-                (format!("{}:{}", ns.sym, name.sym), name.span.clone())
+                (format!("{}:{}", ns.sym, name.sym), name.get_span())
             }
         };
 
@@ -707,7 +811,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
             vec![],
             children,
             None,
-            jsx_fragment.span.clone(),
+            jsx_fragment.get_span(),
         )
     }
 
@@ -797,14 +901,12 @@ impl<C: Comments> JSXTransformVisitor<C> {
             match attr {
                 JSXAttrOrSpread::JSXAttr(attr) => {
                     let (mut name, name_span) = match &attr.name {
-                        JSXAttrName::Ident(ident) => {
-                            (ast_ident_to_string(ident), ident.span.clone())
-                        }
+                        JSXAttrName::Ident(ident) => (ast_ident_to_string(ident), ident.get_span()),
                         JSXAttrName::JSXNamespacedName(name) => {
                             let ns = &name.ns;
                             let name = &name.name;
 
-                            (format!("{}:{}", ns.sym, name.sym), name.span.clone())
+                            (format!("{}:{}", ns.sym, name.sym), name.get_span())
                         }
                         _ => {
                             continue;
@@ -836,7 +938,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                         PropOrSpread::Prop(prop) => match prop.as_ref() {
                                             Prop::KeyValue(key_value) => {
                                                 if let ObjectKey::Expr(_) =
-                                                ObjectKey::from(&key_value.key)
+                                                    ObjectKey::from(&key_value.key)
                                                 {
                                                     should_extra_props = false;
                                                     break;
@@ -848,7 +950,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                             }
                                             Prop::Method(method) => {
                                                 if let ObjectKey::Expr(_) =
-                                                ObjectKey::from(&method.key)
+                                                    ObjectKey::from(&method.key)
                                                 {
                                                     should_extra_props = false;
                                                     break;
@@ -868,14 +970,14 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                                     on_map.insert(
                                                         String::from("on")
                                                             + &upper_first(&ast_ident_to_string(
-                                                            &ident,
-                                                        )),
+                                                                &ident,
+                                                            )),
                                                         Expr::Ident(clone_ident(&ident)),
                                                     );
                                                 }
                                                 Prop::KeyValue(key_value) => {
                                                     if let ObjectKey::Str(key) =
-                                                    ObjectKey::from(&key_value.key)
+                                                        ObjectKey::from(&key_value.key)
                                                     {
                                                         on_map.insert(
                                                             String::from("on") + &upper_first(&key),
@@ -885,7 +987,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                                 }
                                                 Prop::Method(method) => {
                                                     if let ObjectKey::Str(key) =
-                                                    ObjectKey::from(&method.key)
+                                                        ObjectKey::from(&method.key)
                                                     {
                                                         on_map.insert(
                                                             String::from("on") + &upper_first(&key),
@@ -952,18 +1054,23 @@ impl<C: Comments> JSXTransformVisitor<C> {
                         if let Some(caps) = ON_UPDATE_EVENT_REGEX.captures(&name) {
                             name = String::from("onUpdate:")
                                 + &(match &caps.get(1) {
-                                None => String::from(""),
-                                Some(m) => m.as_str().to_lowercase(),
-                            })
+                                    None => String::from(""),
+                                    Some(m) => m.as_str().to_lowercase(),
+                                })
                                 + (match &caps.get(2) {
-                                None => "",
-                                Some(m) => m.as_str(),
-                            });
+                                    None => "",
+                                    Some(m) => m.as_str(),
+                                });
                         }
                     }
 
                     if IS_VUE_DIRECTIVE_REGEX.is_match(&name) {
-                        name = lower_first(&camelize(&name)[1..].to_string());
+                        if name.starts_with("v-") {
+                            name = name[2..].to_string();
+                        } else {
+                            name = name[1..].to_string();
+                        }
+
                         let mut arg = None;
                         let mut modifiers = Vec::new();
                         let split_n: Vec<&str> = name.splitn(3, ":").collect();
@@ -994,12 +1101,14 @@ impl<C: Comments> JSXTransformVisitor<C> {
                             }
                         }
 
+                        name = lower_first(&camelize(&name));
+
                         let modifiers = HashSet::from_iter(modifiers.drain(..));
 
                         match &name as &str {
                             "slots" => {
                                 if let Some(expr) = expression {
-                                    slots_array.push(expr);
+                                    slots_array.push(expr)
                                 }
                             }
                             "text" => props_array.push(PropOrSpread::Prop(Box::from(
@@ -1022,7 +1131,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                     let arg = arg.as_ref();
 
                                     fn add_model(
-                                        models: &mut Vec<(Expr, String, HashSet<String>)>,
+                                        models: &mut Vec<(Expr, VModelArgument, HashSet<String>)>,
                                         expr: Expr,
                                         mut modifiers: HashSet<String>,
                                         default_name: Option<&String>,
@@ -1031,10 +1140,10 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                             Expr::Ident(_) | Expr::Member(_) => {
                                                 models.push((
                                                     expr,
-                                                    match default_name {
+                                                    VModelArgument::Str(match default_name {
                                                         Some(name) => String::from(name),
                                                         _ => String::from("modelValue"),
-                                                    },
+                                                    }),
                                                     modifiers,
                                                 ));
 
@@ -1066,55 +1175,64 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                                         return;
                                                     }
                                                     Some(left) => {
-                                                        let mut model_name: Option<String> = None;
+                                                        let mut model_arg: Option<VModelArgument> =
+                                                            None;
                                                         let mut modifiers_array = None;
 
                                                         if !array.elems.is_empty() {
                                                             if let Some(param1) =
-                                                            array.elems.remove(0)
+                                                                array.elems.remove(0)
                                                             {
                                                                 if let None = param1.spread {
-                                                                    match unwrap_expr_move(
-                                                                        *param1.expr,
+                                                                    match unwrap_expr(
+                                                                        param1.expr.as_ref(),
                                                                     ) {
                                                                         Expr::Lit(expr1) => {
                                                                             if let Lit::Str(str) =
-                                                                            expr1
+                                                                                expr1
                                                                             {
-                                                                                let name =
-                                                                                    ast_str_to_string(
-                                                                                        &str,
-                                                                                    );
-                                                                                if !name.is_empty()
-                                                                                {
-                                                                                    model_name =
-                                                                                        Some(name)
-                                                                                }
+                                                                                model_arg = Some(VModelArgument::Str(ast_str_to_string(
+                                                                                    str
+                                                                                )
+                                                                                )
+                                                                                )
                                                                             }
                                                                         }
                                                                         Expr::Array(expr1) => {
                                                                             modifiers_array =
-                                                                                Some(expr1)
+                                                                                Some(ArrayLit {
+                                                                                    span: expr1
+                                                                                        .span
+                                                                                        .clone(),
+                                                                                    elems: expr1
+                                                                                        .elems
+                                                                                        .clone(),
+                                                                                })
                                                                         }
-                                                                        _ => {}
+                                                                        _ => model_arg = Some(
+                                                                            VModelArgument::Expr(
+                                                                                param1.expr.clone(),
+                                                                            ),
+                                                                        ),
                                                                     }
                                                                 }
                                                             }
 
-                                                            if !array.elems.is_empty()
-                                                                && modifiers_array == None
-                                                            {
-                                                                if let Some(param2) =
-                                                                array.elems.remove(0)
-                                                                {
-                                                                    if let None = param2.spread {
-                                                                        if let Expr::Array(expr2) =
-                                                                        unwrap_expr_move(
-                                                                            *param2.expr,
-                                                                        )
+                                                            if !array.elems.is_empty() {
+                                                                if let None = modifiers_array {
+                                                                    if let Some(param2) =
+                                                                        array.elems.remove(0)
+                                                                    {
+                                                                        if let None = param2.spread
                                                                         {
-                                                                            modifiers_array =
-                                                                                Some(expr2)
+                                                                            if let Expr::Array(
+                                                                                expr2,
+                                                                            ) = unwrap_expr_move(
+                                                                                *param2.expr,
+                                                                            ) {
+                                                                                modifiers_array =
+                                                                                    Some(expr2)
+                                                                            }
                                                                         }
                                                                     }
                                                                 }
@@ -1122,19 +1240,19 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                                         }
 
                                                         if let Some(modifiers_array) =
-                                                        modifiers_array
+                                                            modifiers_array
                                                         {
                                                             for elem in modifiers_array.elems.iter()
                                                             {
                                                                 if let Some(elem) = elem {
                                                                     if let None = elem.spread {
                                                                         if let Expr::Lit(elem) =
-                                                                        unwrap_expr(
-                                                                            elem.expr.as_ref(),
-                                                                        )
+                                                                            unwrap_expr(
+                                                                                elem.expr.as_ref(),
+                                                                            )
                                                                         {
                                                                             if let Lit::Str(str) =
-                                                                            elem
+                                                                                elem
                                                                             {
                                                                                 modifiers.insert(ast_str_to_string(str));
                                                                             }
@@ -1144,17 +1262,21 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                                             }
                                                         }
 
-                                                        let name = match model_name {
+                                                        let model_arg = match model_arg {
                                                             Some(name) => name,
-                                                            _ => match default_name {
-                                                                Some(name) => String::from(name),
-                                                                _ => String::from("modelValue"),
-                                                            },
+                                                            _ => VModelArgument::Str(
+                                                                match default_name {
+                                                                    Some(name) => {
+                                                                        String::from(name)
+                                                                    }
+                                                                    _ => String::from("modelValue"),
+                                                                },
+                                                            ),
                                                         };
 
                                                         models.push((
                                                             left.as_ref().clone(),
-                                                            name,
+                                                            model_arg,
                                                             modifiers,
                                                         ))
                                                     }
@@ -1187,22 +1309,69 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                         _ => {}
                                     }
 
-                                    for (left_expr, model_name, modifiers) in raw_models.drain(..) {
+                                    for (left_expr, mut model_arg, modifiers) in
+                                        raw_models.drain(..)
+                                    {
+                                        if let VModelArgument::Expr(model_expr) = &model_arg {
+                                            match model_expr.as_ref() {
+                                                Expr::This(_) | Expr::Ident(_) | Expr::Lit(_) => {}
+                                                _ => {
+                                                    let once_identifier = self.add_import(
+                                                        HELPER_ID,
+                                                        "onceArrowFunctionWithNoArgs",
+                                                    );
+                                                    let model_expr_box = model_expr.clone();
+                                                    let model_expr = *model_expr_box;
+                                                    let span = model_expr.get_span();
+                                                    self.comments.add_pure_comment(span.lo);
+                                                    let ident = self.add_local_variable(
+                                                        {
+                                                            let mut hash = DefaultHasher::new();
+                                                            model_expr.hash(&mut hash);
+                                                            hash.finish().to_string()
+                                                        },
+                                                        move || {
+                                                            let mut result = quote!(
+                                                                r"$once(() => ( $expr ))" as Expr,
+                                                                once: Ident = once_identifier,
+                                                                expr: Expr = model_expr
+                                                            );
+                                                            result.set_span(span);
+                                                            Some(Box::new(result))
+                                                        },
+                                                        VarDeclKind::Const,
+                                                    );
+
+                                                    model_arg = VModelArgument::Expr(Box::new(
+                                                        Expr::Call(CallExpr {
+                                                            span: DUMMY_SP,
+                                                            callee: Callee::Expr(Box::new(
+                                                                Expr::Ident(ident),
+                                                            )),
+                                                            args: vec![],
+                                                            type_args: None,
+                                                        }),
+                                                    ));
+                                                }
+                                            }
+                                        }
+
                                         props_array.push(PropOrSpread::Prop(Box::new(
-                                            create_key_value_prop(
-                                                format!("onUpdate:{}", &model_name),
-                                                quote!(
+                                            Prop::KeyValue(KeyValueProp {
+                                                key: model_arg
+                                                    .to_prop_name_with_prefix("onUpdate:"),
+                                                value: Box::new(quote!(
                                                     r#"( $event ) => void (($left) = $event) "#
                                                         as Expr,
                                                     event: Ident = private_ident!("$event"),
                                                     left: Expr = left_expr.clone()
-                                                ),
-                                            ),
+                                                )),
+                                            }),
                                         )));
 
                                         let mut v_model_directive = None;
 
-                                        if model_name == "modelValue" {
+                                        if let VModelArgument::Str(model_name) = &model_arg {
                                             if is_select_tag {
                                                 v_model_directive =
                                                     Some(self.add_import("vue", "vModelSelect"));
@@ -1267,99 +1436,139 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                         } else {
                                             if let Some(modifier_expr) = modifiers_expr {
                                                 props_array.push(PropOrSpread::Prop(Box::new(
-                                                    create_key_value_prop(
-                                                        format!("{}Modifiers", &model_name),
-                                                        modifier_expr,
-                                                    ),
+                                                    Prop::KeyValue(KeyValueProp {
+                                                        key: model_arg
+                                                            .to_prop_name_with_suffix("Modifiers"),
+                                                        value: Box::new(modifier_expr),
+                                                    }),
                                                 )));
                                             }
                                             props_array.push(PropOrSpread::Prop(Box::new(
-                                                create_key_value_prop_box(
-                                                    model_name,
-                                                    Box::new(left_expr),
-                                                ),
+                                                Prop::KeyValue(KeyValueProp {
+                                                    key: model_arg.to_prop_name(),
+                                                    value: Box::new(left_expr),
+                                                }),
                                             )));
                                         }
                                     }
                                 }
                             }
                             _ => {
-                                let directive_expr = match &name as &str {
-                                    "show" => Expr::Ident(self.add_import("vue", "vShow")),
-                                    _ => {
-                                        let ident =
-                                            self.get_var_ident(&format!("v{}", upper_first(&name)));
-
-                                        if let Some(ident) = ident {
-                                            Expr::Ident(ident)
-                                        } else {
-                                            let resolve_directive =
-                                                self.add_import("vue", "resolveDirective");
-
-                                            if let Some(comments) = &mut self.comments {
-                                                comments.add_pure_comment(name_span.lo.clone());
-                                            }
-
-                                            let get_resolved_directive_expr = || {
-                                                Expr::Call(CallExpr {
-                                                    span: name_span.clone(),
-                                                    callee: Callee::Expr(Box::new(
-                                                        resolve_directive.into(),
-                                                    )),
-                                                    args: vec![ExprOrSpread {
-                                                        spread: None,
-                                                        expr: Box::new(Expr::Lit(Lit::Str(
-                                                            Str::from(name.to_string()),
-                                                        ))),
-                                                    }],
-                                                    type_args: None,
-                                                })
-                                            };
-
-                                            if self.config.optimize {
-                                                Expr::Ident(self.add_local_variable(
-                                                    format!("resolve-directive:{}", &name),
-                                                    {
-                                                        move || {
-                                                            Some(Box::from(
-                                                                get_resolved_directive_expr(),
-                                                            ))
-                                                        }
-                                                    },
-                                                    VarDeclKind::Const,
-                                                ))
-                                            } else {
-                                                get_resolved_directive_expr()
-                                            }
+                                if self.config.transform_v_slot && name == "slot" {
+                                    if let Some(arg) = arg {
+                                        if let Some(expression) = expression {
+                                            slots_array.push(Expr::Object(ObjectLit {
+                                                span: DUMMY_SP,
+                                                props: vec![PropOrSpread::Prop(Box::new(
+                                                    create_key_value_prop(
+                                                        arg,
+                                                        match unwrap_expr(&expression) {
+                                                            Expr::Fn(_) | Expr::Arrow(_) => {
+                                                                expression
+                                                            }
+                                                            Expr::Array(_)
+                                                            | Expr::Lit(_)
+                                                            | Expr::Tpl(_) => quote!(
+                                                                r#"() => $children"# as Expr,
+                                                                children: Expr = Expr::Array(
+                                                                    self.convert_to_array(
+                                                                        expression,
+                                                                    ),
+                                                                )
+                                                            ),
+                                                            _ => quote!(
+                                                                r#"$to_slot($expr)"# as Expr,
+                                                                to_slot: Ident = self.add_import(
+                                                                    HELPER_ID, "toSlot"
+                                                                ),
+                                                                expr: Expr = expression
+                                                            ),
+                                                        },
+                                                    ),
+                                                ))],
+                                            }))
                                         }
                                     }
-                                };
-                                let argument_expr = if let Some(arg) = arg {
-                                    Expr::Lit(Lit::Str(Str::from(arg)))
                                 } else {
-                                    create_void_zero_expr()
-                                };
-                                let modifiers_expr = if modifiers.is_empty() {
-                                    create_void_zero_expr()
-                                } else {
-                                    let modifiers_expr = self.generate_modifiers_object(&modifiers);
-                                    if let Expr::Ident(ident) = &modifiers_expr {
-                                        constant_idents.insert(clone_ident(ident));
-                                    }
-                                    modifiers_expr
-                                };
+                                    let directive_expr = match &name as &str {
+                                        "show" => Expr::Ident(self.add_import("vue", "vShow")),
+                                        _ => {
+                                            let ident = self
+                                                .get_var_ident(&format!("v{}", upper_first(&name)));
 
-                                directives_array.push(Some(ExprOrSpread {
-                                    spread: None,
-                                    expr: Box::new(quote!(
-                                        r#"[$directive, $expression, $argument, $modifiers]"#
-                                            as Expr,
-                                        directive: Expr = directive_expr,
-                                        expression: Expr = expression.unwrap_or(create_true_expr()),
-                                        argument: Expr = argument_expr,
-                                        modifiers: Expr = modifiers_expr
-                                    )),
-                                }))
+                                            if let Some(ident) = ident {
+                                                Expr::Ident(ident)
+                                            } else {
+                                                let resolve_directive =
+                                                    self.add_import("vue", "resolveDirective");
+
+                                                if let Some(comments) = &mut self.comments {
+                                                    comments.add_pure_comment(name_span.lo.clone());
+                                                }
+
+                                                let get_resolved_directive_expr = || {
+                                                    Expr::Call(CallExpr {
+                                                        span: name_span.clone(),
+                                                        callee: Callee::Expr(Box::new(
+                                                            resolve_directive.into(),
+                                                        )),
+                                                        args: vec![ExprOrSpread {
+                                                            spread: None,
+                                                            expr: Box::new(Expr::Lit(Lit::Str(
+                                                                Str::from(name.to_string()),
+                                                            ))),
+                                                        }],
+                                                        type_args: None,
+                                                    })
+                                                };
+
+                                                if self.config.optimize {
+                                                    Expr::Ident(self.add_local_variable(
+                                                        format!("resolve-directive:{}", &name),
+                                                        {
+                                                            move || {
+                                                                Some(Box::from(
+                                                                    get_resolved_directive_expr(),
+                                                                ))
+                                                            }
+                                                        },
+                                                        VarDeclKind::Const,
+                                                    ))
+                                                } else {
+                                                    get_resolved_directive_expr()
+                                                }
+                                            }
+                                        }
+                                    };
+                                    let argument_expr = if let Some(arg) = arg {
+                                        Expr::Lit(Lit::Str(Str::from(arg)))
+                                    } else {
+                                        create_void_zero_expr()
+                                    };
+                                    let modifiers_expr = if modifiers.is_empty() {
+                                        create_void_zero_expr()
+                                    } else {
+                                        let modifiers_expr =
+                                            self.generate_modifiers_object(&modifiers);
+                                        if let Expr::Ident(ident) = &modifiers_expr {
+                                            constant_idents.insert(clone_ident(ident));
+                                        }
+                                        modifiers_expr
+                                    };
+
+                                    directives_array.push(Some(ExprOrSpread {
+                                        spread: None,
+                                        expr: Box::new(quote!(
+                                            r#"[$directive, $expression, $argument, $modifiers]"#
+                                                as Expr,
+                                            directive: Expr = directive_expr,
+                                            expression: Expr =
+                                                expression.unwrap_or(create_true_expr()),
+                                            argument: Expr = argument_expr,
+                                            modifiers: Expr = modifiers_expr
+                                        )),
+                                    }))
+                                }
                             }
                         }
                     } else {
@@ -1431,7 +1640,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
             directives_array,
             children,
             Some(constant_idents),
-            jsx_element.span.clone(),
+            jsx_element.get_span(),
         )
     }
 
@@ -2114,17 +2323,17 @@ impl<C: Comments> JSXTransformVisitor<C> {
                         Some(elem1) => {
                             if let Some(_) = &elem1.spread {
                                 result = Expr::Array(ArrayLit {
-                                    span: array.span.clone(),
+                                    span: array.get_span(),
                                     elems: vec![Some(elem1)],
                                 })
                             } else if let Expr::Object(object) = unwrap_expr(elem1.expr.as_ref()) {
                                 result = Expr::Object(ObjectLit {
-                                    span: object.span.clone(),
+                                    span: object.get_span(),
                                     props: object.props.clone(),
                                 })
                             } else {
                                 result = Expr::Array(ArrayLit {
-                                    span: array.span.clone(),
+                                    span: array.get_span(),
                                     elems: vec![Some(elem1)],
                                 })
                             }

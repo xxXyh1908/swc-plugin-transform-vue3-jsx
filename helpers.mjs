@@ -9,6 +9,8 @@ export const castArray = value => {
   else return [value]
 }
 
+export const upperFirst = str => str[0].toUpperCase() + str.slice(1)
+
 export const ssr = /*@__PURE__*/ import.meta.env
   ? import.meta.env.SSR
   : typeof __SSR__ === 'boolean'
@@ -26,6 +28,23 @@ export const transformOn = obj => {
 
   return result
 }
+
+export const onceArrowFunctionWithNoArgs = fn => {
+  let result
+  let isCalled = false
+
+  return () => {
+    if (isCalled) {
+      return result
+    } else {
+      result = fn()
+      isCalled = true
+      return result
+    }
+  }
+}
+
+export const toSlot = slot => (typeof slot === 'function' ? slot : () => [slot])
 
 export const toObjectSlots = slots => {
   return slots == null

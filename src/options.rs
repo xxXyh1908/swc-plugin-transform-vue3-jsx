@@ -34,6 +34,8 @@ struct TransformVue3JsxOptions {
     #[serde(default = "get_false")]
     transform_on: bool,
     #[serde(default = "get_false")]
+    transform_v_slot: bool,
+    #[serde(default = "get_false")]
     transform_on_update_event: bool,
     pragma: Option<String>,
 }
@@ -117,6 +119,7 @@ pub(crate) fn create_folders_from_metadata(
             optimize: config.optimize,
             react_style: config.react_style,
             transform_on: config.transform_on,
+            transform_v_slot: config.transform_v_slot,
             transform_on_update_event: config.transform_on_update_event,
             file_name,
         },
