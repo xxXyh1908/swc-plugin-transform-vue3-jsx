@@ -431,7 +431,9 @@ impl<C: Comments> JSXTransformVisitor<C> {
 
         if let Some(mut new_local_vars) = self.new_local_vars_vec.pop() {
             let mut values = new_local_vars.drain_values();
-            function_scope._prepend_var_decls(values.drain(..));
+            if !values.is_empty() {
+                function_scope._prepend_var_decls(values.drain(..));
+            }
         }
     }
 
@@ -611,7 +613,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
                         })))],
                     });
                 }
-                Expr::Array(_) | Expr::Lit(_) | Expr::Tpl(_) => is_vue_child = true,
+                Expr::Array(_) | Expr::Lit(_) | Expr::Tpl(_) | Expr::JSXElement(_) | Expr::JSXFragment(_) => is_vue_child = true,
                 Expr::Call(call_expr) => {
                     let callee = &call_expr.callee;
                     match callee {
@@ -857,6 +859,17 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                                         }
                                                         _ => None,
                                                     }
+                                                }
+                                                JSXAttrValue::JSXElement(element) => {
+                                                    Some(Expr::JSXElement(element.clone()))
+                                                }
+                                                JSXAttrValue::JSXFragment(fragment) => {
+                                                    Some(Expr::JSXFragment(JSXFragment {
+                                                        span: fragment.span.clone(),
+                                                        opening: fragment.opening.clone(),
+                                                        children: fragment.children.clone(),
+                                                        closing: fragment.closing.clone(),
+                                                    }))
                                                 }
                                                 _ => None,
                                             },
@@ -2883,8 +2896,6 @@ impl<C: Comments> VisitMut for JSXTransformVisitor<C> {
     }
 
     fn visit_mut_expr(&mut self, expr: &mut Expr) {
-        expr.visit_mut_children_with(self);
-
         match expr {
             Expr::JSXElement(jsx_element) => {
                 *expr = self.transform_jsx_element(jsx_element);
@@ -2894,11 +2905,11 @@ impl<C: Comments> VisitMut for JSXTransformVisitor<C> {
             }
             _ => {}
         }
+
+        expr.visit_mut_children_with(self);
     }
 
     fn visit_mut_jsx_element_child(&mut self, child: &mut JSXElementChild) {
-        child.visit_mut_children_with(self);
-
         match child {
             JSXElementChild::JSXElement(jsx_element) => {
                 *child = JSXElementChild::JSXExprContainer(JSXExprContainer {
@@ -2914,11 +2925,11 @@ impl<C: Comments> VisitMut for JSXTransformVisitor<C> {
             }
             _ => {}
         }
+
+        child.visit_mut_children_with(self);
     }
 
     fn visit_mut_jsx_attr_value(&mut self, value: &mut JSXAttrValue) {
-        value.visit_mut_children_with(self);
-
         match value {
             JSXAttrValue::JSXElement(jsx_element) => {
                 *value = JSXAttrValue::JSXExprContainer(JSXExprContainer {
@@ -2934,5 +2945,7 @@ impl<C: Comments> VisitMut for JSXTransformVisitor<C> {
             }
             _ => {}
         }
+
+        value.visit_mut_children_with(self);
     }
 }

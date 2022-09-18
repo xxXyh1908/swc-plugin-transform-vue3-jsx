@@ -11,8 +11,10 @@ export const FormTest = defineComponent({
       <input type="checkbox" v-model={[value]} />
       <input type={type} v-model={[value, "modelValue", ["lazy"]]} />
       <select v-model_number={[value, ["modifier", "lazy"]]} >{{ default: () => <div>A</div>, bar: () => <span>B</span> }}{}</select>
-      <Input v-directive:arg_mod={dir} v-model={value1} v-models_modifier={[[value1, dyn.arg], [value2, "value"]]} ></Input>
-      <Input v-html={html} v-text={text}>input</Input>
+      <A>
+        <Input v-directive:arg_mod={dir} v-model={value1} v-models_modifier={[[value1, dyn.arg], [value2, "value"]]} ></Input>
+        <Input v-html={html} v-text={text}>input</Input>
+      </A>
     </>
   },
 })
