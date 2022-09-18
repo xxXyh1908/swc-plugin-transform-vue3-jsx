@@ -2,6 +2,7 @@
 [npm-url]: https://www.npmjs.com/package/swc-plugin-transform-vue3-jsx
 [size]: https://packagephobia.now.sh/badge?p=swc-plugin-transform-vue3-jsx
 [size-url]: https://packagephobia.now.sh/result?p=swc-plugin-transform-vue3-jsx
+[download]: https://img.shields.io/npm/dm/swc-plugin-transform-vue3-jsx
 
 # swc-plugin-transform-vue3-jsx
 
