@@ -1,7 +1,7 @@
 # 0.1.0 (2022-09-16)
 initial
 
-# 0.1.2 (2022-09-16)
+# 0.1.2 (2022-09-18)
 ### Bug Fixes
 - Fixed the bug of directive-argument in camelCase(.e.g `v-camel-case` => resolveDirective('`camelCase`')).
 
