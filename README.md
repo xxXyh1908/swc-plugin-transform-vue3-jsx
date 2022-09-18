@@ -48,7 +48,7 @@ yarn add swc-plugin-transform-vue3-jsx -D
 
 1. ✅ New option `reactStyle`: Convert `react-jsx` syntax into `vue3-jsx` equivalent conversion product, which is convenient for developers to quickly convert `react-projects` into `vue-projects`.
 2. ✅ New Option `transformOnUpdateEvent`: To convert any property that looks like `onUpdateXxx` to an `onUpdate:xxx` property (which is not a legal prop-name due to JSX's own rules), often used for `naive-UI`.
-3. ✅ New Option `transformVSlot`: To convert any property that looks like `v-slot:xxx` to an `v-slots={"xxx": ...}` property.
+3. ✅ New Option `transformVSlot`: To convert any property that looks like `v-slot:xxx` to an `v-slots={{"xxx": ...}}` property.
 4. ✅ New Option `hmr`: Generate the HMR code.
 5. 🤥 Option `isCustomElement` renamed to `customElement`, and only string arrays are supported(`SWC` only supports json options).
 6. ⚒️ More radical optimization algorithm.
@@ -156,9 +156,9 @@ Type: `boolean`
 
 Default: `false`
 
-To convert any property that looks like `v-slot:xxx` to an `v-slots={"xxx": ...}` property.
+To convert any property that looks like `v-slot:xxx` to an `v-slots={{"xxx": ...}}` property.
 
-.e.g `<Comp v-slot:my-slot={ () => [<input/>] } />` => `<NInput v-slots={ "my-slot": () => [<input/>] } />`
+.e.g `<Comp v-slot:my-slot={ () => [<input/>] } />` => `<NInput v-slots={{ "my-slot": () => [<input/>] }} />`
 
 
 #### hmr (New)
