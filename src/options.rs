@@ -8,7 +8,8 @@ use swc_core::{
 
 use crate::{
     utils::{create_file_name_filter, create_filter},
-    visitor::{create_ident, JSXTransformVisitor, JSXTransformVisitorConfig},
+    visitor::{JSXTransformVisitor, JSXTransformVisitorConfig},
+    visitor_helpers::create_ident,
 };
 
 #[derive(Deserialize, Debug)]
@@ -48,7 +49,11 @@ fn test_options() {
     )
     .expect("invalid config for vue3-jsx");
 
-    create_file_name_filter(Some(options.include.clone()), Some(options.exclude.clone()), None);
+    create_file_name_filter(
+        Some(options.include.clone()),
+        Some(options.exclude.clone()),
+        None,
+    );
 
     println!("{:?}", options);
 }

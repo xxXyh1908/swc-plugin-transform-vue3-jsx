@@ -13,6 +13,7 @@ mod options;
 mod test;
 mod utils;
 mod visitor;
+mod visitor_helpers;
 
 /// An example plugin function with macro support.
 /// `plugin_transform` macro interop pointers into deserialized structs, as well
