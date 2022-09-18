@@ -9,12 +9,12 @@ use regex::Regex;
 use swc_core::{
     common::{
         comments::{Comments, NoopComments},
-        Span, DUMMY_SP,
+        DUMMY_SP, Span,
     },
     ecma::{
         ast::{
-            ArrayLit, ArrowExpr, AssignPat, BinExpr, BinaryOp, BindingIdent, BlockStmt, CallExpr,
-            Callee, ClassExpr, ClassMethod, ComputedPropName, Constructor, Decl, ExportSpecifier,
+            ArrayLit, ArrowExpr, AssignPat, BinaryOp, BindingIdent, BinExpr, BlockStmt, Callee,
+            CallExpr, ClassExpr, ClassMethod, ComputedPropName, Constructor, Decl, ExportSpecifier,
             Expr, ExprOrSpread, FnDecl, FnExpr, ForInStmt, ForOfStmt, ForStmt, Function,
             GetterProp, Ident, ImportDecl, ImportNamedSpecifier, ImportSpecifier, JSXAttrName,
             JSXAttrOrSpread, JSXAttrValue, JSXElement, JSXElementChild, JSXElementName, JSXExpr,
@@ -22,7 +22,7 @@ use swc_core::{
             Module, ModuleDecl, ModuleExportName, ModuleItem, Number, ObjectLit, ObjectPat,
             ObjectPatProp, Pat, PrivateMethod, Program, Prop, PropName, PropOrSpread, Script,
             SeqExpr, SetterProp, SpreadElement, Stmt, Str, ThisExpr, TsExportAssignment,
-            TsModuleDecl, UnaryOp, VarDecl, VarDeclKind, VarDeclarator,
+            TsModuleDecl, UnaryOp, VarDecl, VarDeclarator, VarDeclKind,
         },
         atoms::js_word,
         utils::{private_ident, quote_ident},
@@ -31,22 +31,22 @@ use swc_core::{
     quote,
 };
 
-use crate::visitor_helpers::{prepend_var_decls_into_module_items, AstSpanAccessor};
 use crate::{
     constants::{is_builtin_component, is_known_tag},
     flags::{PatchFlags, SlotFlags},
     hashmap_str_key_get_mut_default,
-    utils::{camelize, camelize_upper_first, lower_first, upper_first, StringFilter},
+    utils::{camelize, camelize_upper_first, lower_first, StringFilter, upper_first},
     visitor_helpers::{
         ast_ident_to_string, ast_str_to_string, clone_ident, clone_lit, create_ident,
         create_key_value_prop, create_null_expr, create_private_ident, create_true_expr,
-        create_void_zero_expr, find_decl_ident_from_module_items, find_decl_ident_from_pattern,
-        find_decl_ident_from_pattern0, find_decl_ident_from_stmts, is_constant_expr,
-        is_define_component_expr, is_script_top, jsx_member_ref_to_member_expr, unwrap_expr,
-        unwrap_expr_move, DrainValues, ForLike, FunctionScope, JsxTag, ObjectKey, PropsItem,
-        PropsItemMapItem, VarDeclRecord,
+        create_void_zero_expr, DrainValues, find_decl_ident_from_module_items,
+        find_decl_ident_from_pattern, find_decl_ident_from_pattern0, find_decl_ident_from_stmts,
+        ForLike, FunctionScope, is_constant_expr, is_define_component_expr,
+        is_script_top, jsx_member_ref_to_member_expr, JsxTag, ObjectKey, PropsItem, PropsItemMapItem, unwrap_expr,
+        unwrap_expr_move, VarDeclRecord,
     },
 };
+use crate::visitor_helpers::{AstSpanAccessor, prepend_var_decls_into_module_items};
 
 const HELPER_ID: &str = "swc-plugin-transform-vue3-jsx/helpers";
 
@@ -860,17 +860,6 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                                         _ => None,
                                                     }
                                                 }
-                                                JSXAttrValue::JSXElement(element) => {
-                                                    Some(Expr::JSXElement(element.clone()))
-                                                }
-                                                JSXAttrValue::JSXFragment(fragment) => {
-                                                    Some(Expr::JSXFragment(JSXFragment {
-                                                        span: fragment.span.clone(),
-                                                        opening: fragment.opening.clone(),
-                                                        children: fragment.children.clone(),
-                                                        closing: fragment.closing.clone(),
-                                                    }))
-                                                }
                                                 _ => None,
                                             },
                                             _ => None,
@@ -932,6 +921,24 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                 JSXExpr::Expr(expr) => Some(expr.as_ref().clone()),
                                 _ => None,
                             },
+                            JSXAttrValue::JSXElement(element) => {
+                                Some(Expr::JSXElement(Box::new(
+                                    JSXElement {
+                                        span: element.span.clone(),
+                                        opening: element.opening.clone(),
+                                        children: element.children.clone(),
+                                        closing: element.closing.clone(),
+                                    }
+                                )))
+                            }
+                            JSXAttrValue::JSXFragment(fragment) => {
+                                Some(Expr::JSXFragment(JSXFragment {
+                                    span: fragment.span.clone(),
+                                    opening: fragment.opening.clone(),
+                                    children: fragment.children.clone(),
+                                    closing: fragment.closing.clone(),
+                                }))
+                            }
                             _ => None,
                         },
                         _ => None,
@@ -951,7 +958,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                         PropOrSpread::Prop(prop) => match prop.as_ref() {
                                             Prop::KeyValue(key_value) => {
                                                 if let ObjectKey::Expr(_) =
-                                                    ObjectKey::from(&key_value.key)
+                                                ObjectKey::from(&key_value.key)
                                                 {
                                                     should_extra_props = false;
                                                     break;
@@ -963,7 +970,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                             }
                                             Prop::Method(method) => {
                                                 if let ObjectKey::Expr(_) =
-                                                    ObjectKey::from(&method.key)
+                                                ObjectKey::from(&method.key)
                                                 {
                                                     should_extra_props = false;
                                                     break;
@@ -983,14 +990,14 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                                     on_map.insert(
                                                         String::from("on")
                                                             + &upper_first(&ast_ident_to_string(
-                                                                &ident,
-                                                            )),
+                                                            &ident,
+                                                        )),
                                                         Expr::Ident(clone_ident(&ident)),
                                                     );
                                                 }
                                                 Prop::KeyValue(key_value) => {
                                                     if let ObjectKey::Str(key) =
-                                                        ObjectKey::from(&key_value.key)
+                                                    ObjectKey::from(&key_value.key)
                                                     {
                                                         on_map.insert(
                                                             String::from("on") + &upper_first(&key),
@@ -1000,7 +1007,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                                 }
                                                 Prop::Method(method) => {
                                                     if let ObjectKey::Str(key) =
-                                                        ObjectKey::from(&method.key)
+                                                    ObjectKey::from(&method.key)
                                                     {
                                                         on_map.insert(
                                                             String::from("on") + &upper_first(&key),
@@ -1067,13 +1074,13 @@ impl<C: Comments> JSXTransformVisitor<C> {
                         if let Some(caps) = ON_UPDATE_EVENT_REGEX.captures(&name) {
                             name = String::from("onUpdate:")
                                 + &(match &caps.get(1) {
-                                    None => String::from(""),
-                                    Some(m) => m.as_str().to_lowercase(),
-                                })
+                                None => String::from(""),
+                                Some(m) => m.as_str().to_lowercase(),
+                            })
                                 + (match &caps.get(2) {
-                                    None => "",
-                                    Some(m) => m.as_str(),
-                                });
+                                None => "",
+                                Some(m) => m.as_str(),
+                            });
                         }
                     }
 
@@ -1194,7 +1201,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
 
                                                         if !array.elems.is_empty() {
                                                             if let Some(param1) =
-                                                                array.elems.remove(0)
+                                                            array.elems.remove(0)
                                                             {
                                                                 if let None = param1.spread {
                                                                     match unwrap_expr(
@@ -1202,7 +1209,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                                                     ) {
                                                                         Expr::Lit(expr1) => {
                                                                             if let Lit::Str(str) =
-                                                                                expr1
+                                                                            expr1
                                                                             {
                                                                                 model_arg = Some(VModelArgument::Str(ast_str_to_string(
                                                                                     str
@@ -1234,7 +1241,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                                             if !array.elems.is_empty() {
                                                                 if let None = modifiers_array {
                                                                     if let Some(param2) =
-                                                                        array.elems.remove(0)
+                                                                    array.elems.remove(0)
                                                                     {
                                                                         if let None = param2.spread
                                                                         {
@@ -1253,19 +1260,19 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                                         }
 
                                                         if let Some(modifiers_array) =
-                                                            modifiers_array
+                                                        modifiers_array
                                                         {
                                                             for elem in modifiers_array.elems.iter()
                                                             {
                                                                 if let Some(elem) = elem {
                                                                     if let None = elem.spread {
                                                                         if let Expr::Lit(elem) =
-                                                                            unwrap_expr(
-                                                                                elem.expr.as_ref(),
-                                                                            )
+                                                                        unwrap_expr(
+                                                                            elem.expr.as_ref(),
+                                                                        )
                                                                         {
                                                                             if let Lit::Str(str) =
-                                                                                elem
+                                                                            elem
                                                                             {
                                                                                 modifiers.insert(ast_str_to_string(str));
                                                                             }
@@ -1323,7 +1330,7 @@ impl<C: Comments> JSXTransformVisitor<C> {
                                     }
 
                                     for (left_expr, mut model_arg, modifiers) in
-                                        raw_models.drain(..)
+                                    raw_models.drain(..)
                                     {
                                         if let VModelArgument::Expr(model_expr) = &model_arg {
                                             match model_expr.as_ref() {
