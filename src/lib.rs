@@ -1,19 +1,20 @@
+use options::create_folder_from_metadata;
 use swc_core::{
     ecma::{ast::Program, visit::FoldWith},
     plugin::{plugin_transform, proxies::TransformPluginProgramMetadata},
 };
 
-use crate::options::create_folders_from_metadata;
-pub use crate::visitor::JSXTransformVisitor;
-pub use crate::visitor::JSXTransformVisitorConfig;
-
 mod constants;
 mod flags;
 mod options;
-mod test;
 mod utils;
 mod visitor;
 mod visitor_helpers;
+
+pub use crate::{
+    options::create_folder, options::parse_options, utils::StringFilter,
+    visitor::JSXTransformVisitorOptions,
+};
 
 /// An example plugin function with macro support.
 /// `plugin_transform` macro interop pointers into deserialized structs, as well
@@ -35,10 +36,8 @@ pub fn process_transform(
     mut program: Program,
     metadata: TransformPluginProgramMetadata,
 ) -> Program {
-    if let Some(mut folders) = create_folders_from_metadata(metadata) {
-        for mut folder in folders.drain(..) {
-            program = program.fold_with(folder.as_mut());
-        }
+    if let Some(mut folder) = create_folder_from_metadata(metadata) {
+        program = program.fold_with(&mut folder);
     }
 
     program

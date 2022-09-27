@@ -25,32 +25,32 @@ use swc_core::{
 };
 
 #[derive(Debug, PartialEq, Hash, Clone)]
-pub enum JsxTag {
+pub(crate) enum JsxTag {
     Fragment(Expr),
     String(String),
     Expr(Expr),
 }
 
 #[derive(Debug, PartialEq, Hash, Clone)]
-pub enum PropsItemMapItem {
+pub(crate) enum PropsItemMapItem {
     Normal(Expr),
     Accessor((Option<Box<Prop>>, Option<Box<Prop>>)),
 }
 
 #[derive(Debug, PartialEq, Hash, Clone)]
-pub enum PropsItem {
+pub(crate) enum PropsItem {
     Map(LinkedHashMap<ObjectKey, PropsItemMapItem>),
     Spread(SpreadElement),
 }
 
 #[derive(Debug, Clone)]
-pub enum ObjectKey {
+pub(crate) enum ObjectKey {
     Str(String),
     Expr(Expr),
 }
 
 #[derive(Debug, Clone)]
-pub enum VarDeclRecord {
+pub(crate) enum VarDeclRecord {
     Func((HashSet<Ident>, HashMap<String, Ident>)),
     Block((HashSet<Ident>, HashMap<String, Ident>)),
 }
@@ -602,34 +602,9 @@ pub(crate) fn create_key_value_prop(key: String, value: Expr) -> Prop {
     create_key_value_prop_box(key, Box::new(value))
 }
 
-pub(crate) fn create_dyn_key_value_prop(key: Expr, value: Expr) -> Prop {
-    create_dyn_key_value_prop_box(key, Box::new(value))
-}
-
 pub(crate) fn create_key_value_prop_box(key: String, value: Box<Expr>) -> Prop {
     Prop::KeyValue(KeyValueProp {
         key: PropName::Str(Str::from(key)),
-        value,
-    })
-}
-
-pub(crate) fn create_dyn_key_value_prop_box(key: Expr, value: Box<Expr>) -> Prop {
-    Prop::KeyValue(KeyValueProp {
-        key: if let Expr::Lit(lit) = key {
-            if let Lit::Str(key) = lit {
-                PropName::Str(Str::from(key))
-            } else {
-                PropName::Computed(ComputedPropName {
-                    span: DUMMY_SP,
-                    expr: Box::new(Expr::Lit(lit)),
-                })
-            }
-        } else {
-            PropName::Computed(ComputedPropName {
-                span: DUMMY_SP,
-                expr: Box::new(key),
-            })
-        },
         value,
     })
 }

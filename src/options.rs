@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use swc_core::{
+    common::comments::Comments,
     ecma::visit::{as_folder, Fold},
     plugin::{
         metadata::TransformPluginMetadataContextKind, proxies::TransformPluginProgramMetadata,
@@ -8,7 +9,7 @@ use swc_core::{
 
 use crate::{
     utils::{create_file_name_filter, create_filter},
-    visitor::{JSXTransformVisitor, JSXTransformVisitorConfig},
+    visitor::{JSXTransformVisitor, JSXTransformVisitorOptions},
     visitor_helpers::create_ident,
 };
 
@@ -34,9 +35,15 @@ struct TransformVue3JsxOptions {
     #[serde(default = "get_false")]
     transform_on: bool,
     #[serde(default = "get_false")]
+    transform_slot: bool,
+    #[serde(default = "get_false")]
     transform_v_slot: bool,
     #[serde(default = "get_false")]
     transform_on_update_event: bool,
+    #[serde(default = "get_true")]
+    v_on: bool,
+    #[serde(default = "get_true")]
+    v_model: bool,
     pragma: Option<String>,
 }
 
@@ -75,15 +82,53 @@ fn get_config_default_include() -> Vec<String> {
     vec![String::from(r"/./")]
 }
 
-pub(crate) fn create_folders_from_metadata(
+pub fn parse_options(options: &str, file_name: &str) -> JSXTransformVisitorOptions {
+    let config = serde_json::from_str::<TransformVue3JsxOptions>(options)
+        .expect("invalid options for vue3-jsx");
+
+    let pragma = config.pragma;
+    let pragma_ident = match &pragma {
+        Some(pragma) => Some(create_ident(pragma)),
+        _ => None,
+    };
+
+    JSXTransformVisitorOptions {
+        pragma: pragma_ident.clone(),
+        is_custom_element: create_filter(Some(config.custom_element)),
+        hmr: config.hmr,
+        merge_props: config.merge_props,
+        enable_object_slots: config.enable_object_slots,
+        optimize: config.optimize,
+        react_style: config.react_style,
+        transform_on: config.transform_on,
+        transform_slot: config.transform_slot,
+        transform_v_slot: config.transform_v_slot,
+        transform_on_update_event: config.transform_on_update_event,
+        v_on: config.v_on,
+        v_model: config.v_model,
+        file_name: file_name.to_string(),
+    }
+}
+
+pub fn create_folder<C: Comments + 'static>(
+    options: Option<JSXTransformVisitorOptions>,
+    comments: Option<C>,
+) -> Box<dyn Fold> {
+    Box::from(as_folder(JSXTransformVisitor::new(
+        options.unwrap_or_default(),
+        comments,
+    )))
+}
+
+pub fn create_folder_from_metadata(
     metadata: TransformPluginProgramMetadata,
-) -> Option<Vec<Box<dyn Fold>>> {
+) -> Option<Box<dyn Fold>> {
     let cwd = metadata.get_context(&TransformPluginMetadataContextKind::Cwd);
     let config_str = metadata
         .get_transform_plugin_config()
         .unwrap_or(String::from("{}"));
     let config = serde_json::from_str::<TransformVue3JsxOptions>(&config_str)
-        .expect("invalid config for vue3-jsx");
+        .expect("invalid options for vue3-jsx");
     let file_name = metadata.get_context(&TransformPluginMetadataContextKind::Filename);
 
     if let Some(file_name) = &file_name {
@@ -110,7 +155,7 @@ pub(crate) fn create_folders_from_metadata(
     };
 
     let jsx_visitor = JSXTransformVisitor::new(
-        JSXTransformVisitorConfig {
+        JSXTransformVisitorOptions {
             pragma: pragma_ident.clone(),
             is_custom_element: create_filter(Some(config.custom_element)),
             hmr: config.hmr,
@@ -119,14 +164,15 @@ pub(crate) fn create_folders_from_metadata(
             optimize: config.optimize,
             react_style: config.react_style,
             transform_on: config.transform_on,
+            transform_slot: config.transform_slot,
             transform_v_slot: config.transform_v_slot,
             transform_on_update_event: config.transform_on_update_event,
+            v_on: config.v_on,
+            v_model: config.v_model,
             file_name,
         },
         metadata.comments,
     );
 
-    let folders: Vec<Box<dyn Fold>> = vec![Box::from(as_folder(jsx_visitor))];
-
-    return Some(folders);
+    return Some(Box::from(as_folder(jsx_visitor)));
 }

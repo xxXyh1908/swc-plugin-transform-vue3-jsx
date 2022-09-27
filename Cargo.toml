@@ -1,24 +1,28 @@
 [package]
 author = "xxXyh1908"
 edition = "2021"
+license = "MIT"
 name = "swc_plugin_transform_vue3_jsx"
-version = "0.1.3"
+version = "0.2.0"
 
 [lib]
 crate-type = ["cdylib"]
+name = "swc_plugin_transform_vue3_jsx"
+
+[workspace]
+members = ["playground"]
 
 [profile.release]
 lto = true
 
 [dependencies]
-Inflector = "*"
-globset = "^0.4.*"
-lazy_static = "1.4.*"
-linked-hash-map = "0.5.*"
-regex = "^1.6.*"
+globset = "0.4.9"
+lazy_static = "1.4.0"
+linked-hash-map = "0.5.6"
+regex = "1.6.0"
 serde = "1"
 serde_json = "1"
-swc_core = {version = "0.20.7", features = [
+swc_core = {version = "0.22.0", features = [
   "plugin_transform",
   "ecma_utils",
   "ecma_visit",
@@ -27,6 +31,7 @@ swc_core = {version = "0.20.7", features = [
   "ecma_codegen",
   "ecma_quote",
   "common",
+  "base",
 ]}
 
 [dev-dependencies]

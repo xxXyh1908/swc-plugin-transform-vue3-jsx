@@ -9,7 +9,6 @@ fn to_base_regex(pattern_str: &str) -> Option<Regex> {
     if pattern_str.starts_with('/') {
         let m = pattern_str[1..].rsplit_once('/');
         if let Some(tuple) = m {
-
             return Some(
                 RegexBuilder::new(tuple.0)
                     .multi_line(tuple.1.contains('m'))
@@ -207,7 +206,7 @@ pub(crate) fn upper_first(str: &str) -> String {
     if !chars.is_empty() {
         chars[0] = chars[0].to_ascii_uppercase();
     }
-    return chars.iter().collect::<String>()
+    return chars.iter().collect::<String>();
 }
 
 pub(crate) fn lower_first(str: &str) -> String {
@@ -215,7 +214,7 @@ pub(crate) fn lower_first(str: &str) -> String {
     if !chars.is_empty() {
         chars[0] = chars[0].to_ascii_lowercase();
     }
-    return chars.iter().collect::<String>()
+    return chars.iter().collect::<String>();
 }
 
 pub(crate) fn camelize(str: &str) -> String {
@@ -228,31 +227,4 @@ pub(crate) fn camelize_upper_first(str: &str) -> String {
     return CAMELIZE_UPPER_FIRST_REGEX
         .replace_all(str, |caps: &Captures| (&caps[1]).to_string().to_uppercase())
         .to_string();
-}
-
-//-------------------------------------------macros------------------------------------------
-#[macro_export]
-macro_rules! hashmap_get_mut_default {
-    ($hashmap:expr, $key:expr, $default:expr) => {
-        match $hashmap.get_mut($key) {
-            None => {
-                $hashmap.insert($key.clone(), $default);
-                $hashmap.get_mut($key).unwrap()
-            }
-            Some(value) => value,
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! hashmap_str_key_get_mut_default {
-    ($hashmap:expr, $key_str:expr, $default:expr) => {
-        match $hashmap.get_mut($key_str) {
-            None => {
-                $hashmap.insert($key_str.to_string(), $default);
-                $hashmap.get_mut($key_str).unwrap()
-            }
-            Some(value) => value,
-        }
-    };
 }

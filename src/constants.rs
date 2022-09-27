@@ -23,6 +23,7 @@ const VUE_BUILTIN_COMPONENTS: [&'static str; 6] = [
     "Transition",
     "TransitionGroup",
 ];
+
 lazy_static! {
     static ref KNOWN_TAG_NAMES: HashSet<&'static str> = HashSet::from([
         "html",
