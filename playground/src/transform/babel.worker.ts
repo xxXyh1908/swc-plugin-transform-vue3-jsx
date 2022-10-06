@@ -1,5 +1,5 @@
-import './_babel_env_polyfill'
-import { transform as transformFn } from './_babel_utils'
+// @ts-ignore
+import { transform } from '../../lib/babel-vue-jsx'
 
 const { isArray } = Array
 
@@ -12,8 +12,6 @@ const handleOnMessage = async function (
   if (!isArray(data)) return
   const [key, input, fileName, options] = data
   try {
-    const transform = await transformFn
-
     const start = performance.now()
     const result = transform(input, fileName, options)
     const end = performance.now()
