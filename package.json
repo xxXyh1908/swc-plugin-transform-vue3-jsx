@@ -43,5 +43,5 @@
   "bugs": {
     "url": "https://github.com/xxXyh1908/swc-plugin-transform-vue3-jsx/issues"
   },
-  "homepage": "https://github.com/xxXyh1908/swc-plugin-transform-vue3-jsx/#readme"
+  "homepage": "https://swc-plugin-transform-vue3-jsx.netlify.app"
 }
