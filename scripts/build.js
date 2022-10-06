@@ -3,7 +3,7 @@ const { copyFile } = require('fs/promises')
 const path = require('path')
 
 const proc = spawn('cargo', ['build-wasi', '--release'], {
-  cwd: path.join(__dirname, '.'),
+  cwd: path.join(__dirname, '..'),
   stdio: 'inherit'
 })
 

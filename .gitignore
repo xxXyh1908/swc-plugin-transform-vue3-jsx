@@ -1,8 +1,11 @@
 /target
 ^target/
 target
+pkg
 yarn.lock
 node_modules
 **/.swc
 .idea
 .vscode
+*.wasm
+*.wat

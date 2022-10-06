@@ -1,0 +1,29 @@
+[package]
+authors = ["xxXyh1908 <15626874924@163.com>"]
+edition = "2021"
+name = "vue3_jsx_folder"
+version = "0.2.0"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+globset = "0.4.9"
+lazy_static = "1.4.0"
+linked-hash-map = "0.5.6"
+regex = "1.6.0"
+serde = "1"
+serde_json = "1"
+swc_core = {version = ">=0.22.0", features = [
+  "ecma_utils",
+  "ecma_visit",
+  "ecma_ast",
+  "ecma_quote",
+  "common",
+  "base",
+]}
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+lto = true
+opt-level = 2

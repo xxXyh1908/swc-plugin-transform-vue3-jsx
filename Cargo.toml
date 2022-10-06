@@ -1,41 +1,31 @@
 [package]
-author = "xxXyh1908"
+authors = ["xxXyh1908 <15626874924@163.com>"]
 edition = "2021"
 license = "MIT"
 name = "swc_plugin_transform_vue3_jsx"
 version = "0.2.0"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 name = "swc_plugin_transform_vue3_jsx"
 
 [workspace]
-members = ["playground"]
+members = ["playground", "folder"]
 
 [profile.release]
 lto = true
+opt-level = 2
 
 [dependencies]
-globset = "0.4.9"
-lazy_static = "1.4.0"
-linked-hash-map = "0.5.6"
-regex = "1.6.0"
 serde = "1"
 serde_json = "1"
-swc_core = {version = "0.22.0", features = [
+swc_core = {version = ">=0.22.0", features = [
   "plugin_transform",
-  "ecma_utils",
   "ecma_visit",
   "ecma_ast",
-  "ecma_parser",
-  "ecma_codegen",
-  "ecma_quote",
   "common",
-  "base",
 ]}
-
-[dev-dependencies]
-testing = "0.29.4"
+vue3_jsx_folder = {path = "./folder"}
 
 # .cargo/config defines few alias to build plugin.
 # cargo build-wasi generates wasm-wasi32 binary

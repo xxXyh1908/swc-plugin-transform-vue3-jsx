@@ -1,20 +1,13 @@
-use options::create_folder_from_metadata;
 use swc_core::{
-    ecma::{ast::Program, visit::FoldWith},
-    plugin::{plugin_transform, proxies::TransformPluginProgramMetadata},
+    common::comments::Comments,
+    ecma::{
+        ast::Program,
+        visit::{Fold, FoldWith},
+    },
+    plugin::{metadata::TransformPluginMetadataContextKind, plugin_transform, proxies::TransformPluginProgramMetadata},
 };
 
-mod constants;
-mod flags;
-mod options;
-mod utils;
-mod visitor;
-mod visitor_helpers;
-
-pub use crate::{
-    options::create_folder, options::parse_options, utils::StringFilter,
-    visitor::JSXTransformVisitorOptions,
-};
+use vue3_jsx_folder::{create_folder, TransformVue3JsxOptions};
 
 /// An example plugin function with macro support.
 /// `plugin_transform` macro interop pointers into deserialized structs, as well
@@ -32,13 +25,24 @@ pub use crate::{
 /// This requires manual handling of serialization / deserialization from ptrs.
 /// Refer swc_plugin_macro to see how does it work internally.
 #[plugin_transform]
-pub fn process_transform(
-    mut program: Program,
-    metadata: TransformPluginProgramMetadata,
-) -> Program {
-    if let Some(mut folder) = create_folder_from_metadata(metadata) {
+pub fn process_transform(mut program: Program, mut metadata: TransformPluginProgramMetadata) -> Program {
+    if let Some(mut folder) = create_folder_from_metadata(&mut metadata) {
         program = program.fold_with(&mut folder);
     }
 
     program
+}
+
+fn create_folder_from_metadata<'a>(metadata: &'a mut TransformPluginProgramMetadata) -> Option<Box<dyn Fold + 'a>> {
+    let cwd = metadata.get_context(&TransformPluginMetadataContextKind::Cwd);
+    let options_str = metadata.get_transform_plugin_config().unwrap_or(String::from("{}"));
+    let options = serde_json::from_str::<TransformVue3JsxOptions>(&options_str).expect("invalid options for vue3-jsx");
+    let file_name = metadata.get_context(&TransformPluginMetadataContextKind::Filename);
+
+    let comments = match &mut metadata.comments {
+        Some(comments) => Some(comments as &'a mut dyn Comments),
+        None => None,
+    };
+
+    create_folder(Some(options), file_name, comments, cwd)
 }
