@@ -6,6 +6,5 @@ node_modules
 **/.swc
 .idea
 .vscode
-*.wasm
 *.wat
 wasm
