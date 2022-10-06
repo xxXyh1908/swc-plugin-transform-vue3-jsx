@@ -12,9 +12,9 @@
   "files": [
     "helpers.js",
     "helpers.mjs",
-    "swc_plugin_transform_vue3_jsx.wasm"
+    "wasm/swc_plugin_transform_vue3_jsx.wasm"
   ],
-  "main": "swc_plugin_transform_vue3_jsx.wasm",
+  "main": "wasm/swc_plugin_transform_vue3_jsx.wasm",
   "scripts": {
     "prepublishOnly": "node ./scripts/build.js",
     "release": "bumpp --commit --push --tag --all -x 'npx conventional-changelog -p angular -i CHANGELOG.md -s' && npm publish"
@@ -23,7 +23,7 @@
     "access": "public"
   },
   "exports": {
-    ".": "./swc_plugin_transform_vue3_jsx.wasm",
+    ".": "./wasm/swc_plugin_transform_vue3_jsx.wasm",
     "./package.json": "./package.json",
     "./helpers": {
       "import": "./helpers.mjs",
