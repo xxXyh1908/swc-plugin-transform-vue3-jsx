@@ -1,4 +1,4 @@
-import init, { transform } from '../../pkg/playground'
+import init, { transform } from '../../pkg/playground.js'
 
 let ready = init()
 const { isArray } = Array
