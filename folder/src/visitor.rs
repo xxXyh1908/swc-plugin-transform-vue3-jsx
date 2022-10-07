@@ -1479,7 +1479,7 @@ impl JSXTransformVisitor<'_> {
                             }
                         }
 
-                        name = lower_first(&camelize(&name));
+                        name = lower_first(&name);
 
                         let modifiers = HashSet::from_iter(modifiers.into_iter());
 

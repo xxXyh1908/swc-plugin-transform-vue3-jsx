@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build:web": "vite build",
     "build:wasm": "wasm-pack build --target web",
+    "build": "npm run build:wasm && npm run build:web",
     "preview": "vite preview"
   },
   "dependencies": {

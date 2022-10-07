@@ -8,5 +8,10 @@ initial
 ### New Features
 - New Option `transformVSlot`: To convert any property that looks like `v-slot:xxx` to an `v-slots={"xxx": ...}` property.
 
-# 0.1.3 (2022-09-18)
+# 0.2.1 (2022-10-07)
+### New Features
+- Playground support.
+
 ### Bug Fixes
+- fix KeepAlive components.
+- fix resolveDirective.

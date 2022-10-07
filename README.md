@@ -39,7 +39,7 @@ yarn add swc-plugin-transform-vue3-jsx -D
     }
   },
   "experimental": {
-    "plugins": [["swc-plugin-transform-vue3-jsx", { }]]
+    "plugins": [["swc-plugin-transform-vue3-jsx", {}]]
   }
 }
 ```
@@ -49,10 +49,12 @@ yarn add swc-plugin-transform-vue3-jsx -D
 1. ✅ New option `reactStyle`: Convert `react-jsx` syntax into `vue3-jsx` equivalent conversion product, which is convenient for developers to quickly convert `react-projects` into `vue-projects`.
 2. ✅ New Option `transformOnUpdateEvent`: To convert any property that looks like `onUpdateXxx` to an `onUpdate:xxx` property (which is not a legal prop-name due to JSX's own rules), often used for `naive-UI`.
 3. ✅ New Option `transformVSlot`: To convert any property that looks like `v-slot:xxx` to an `v-slots={{"xxx": ...}}` property.
-4. ✅ New Option `hmr`: Generate the HMR code.
-5. 🤥 Option `isCustomElement` renamed to `customElement`, and only string arrays are supported(`SWC` only supports json options).
-6. ⚒️ More radical optimization algorithm.
-7. ⚒️ Fixed some bugs for `@vue/babel-plugin-jsx`.
+4. ✅ New Option `transformSlot`: To convert tag that named `slot` to a `vnodeChild` expression.
+5. ✅ New Option `hmr`: Generate the HMR code.
+6. ✅ New Option `vModel` and 'vOn'.
+7. 🤥 Option `isCustomElement` renamed to `customElement`, and only string arrays are supported(`SWC` only supports json options).
+8. ⚒️ More radical optimization algorithm.
+9. ⚒️ Fixed some bugs for `@vue/babel-plugin-jsx`.
 
 ## Usage
 
@@ -101,7 +103,7 @@ configuring custom elements.
 .e.g
 
 ```js
-['my-custom-element', /^my-[a-z0-9-]+$/.toString()]
+;['my-custom-element', /^my-[a-z0-9-]+$/.toString()]
 ```
 
 #### mergeProps
@@ -160,6 +162,27 @@ To convert any property that looks like `v-slot:xxx` to an `v-slots={{"xxx": ...
 
 .e.g `<Comp v-slot:my-slot={ () => [<input/>] } />` => `<NInput v-slots={{ "my-slot": () => [<input/>] }} />`
 
+#### transformSlot (New)
+
+Type: `boolean`
+
+Default: `false`
+
+To convert tag that named `slot` to a `vnodeChild` expression.
+
+.e.g `<slot name="item" data={data}></slot>` => `renderSlot('item', { data })`
+
+#### vModel (New)
+
+Type: `boolean`
+
+Default: `true`
+
+#### vOn (New)
+
+Type: `boolean`
+
+Default: `true`
 
 #### hmr (New)
 
@@ -172,18 +195,23 @@ Generate the HMR code.
 ## Syntax
 
 ### directive syntax
-in vue template 
+
+in vue template
+
 ```html
-  <comp v-directive:argument.modifier="expression" />
+<comp v-directive:argument.modifier="expression" />
 ```
 
 is same as jsx
+
 ```jsx
-  <comp v-directive:argument_modifier={expression} />
+<comp v-directive:argument_modifier={expression} />
 ```
+
 or
+
 ```jsx
-  <comp vDirective:argument_modifier={expression} />
+<comp vDirective:argument_modifier={expression} />
 ```
 
 ### Content
@@ -305,7 +333,6 @@ createVNode('input', {
   'onUpdate:modelValue': $event => (val = $event)
 })
 ```
-
 
 ```jsx
 <A v-model={[val, 'argument', ['modifier']]} />
