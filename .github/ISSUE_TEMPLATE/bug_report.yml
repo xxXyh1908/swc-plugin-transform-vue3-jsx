@@ -12,7 +12,6 @@ body:
     id: playground-url
     attributes:
       label: Input code
-      render: typescript
   - type: textarea
     id: expected
     attributes:
