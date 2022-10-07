@@ -1,5 +1,5 @@
 // @ts-ignore
-import { transform } from '../../lib/babel-vue-jsx'
+import { transform } from './_babel_transform'
 
 const { isArray } = Array
 
