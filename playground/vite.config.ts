@@ -3,6 +3,6 @@ import { defineConfig } from 'vite'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  build: { minify: false, target: false },
+  build: { target: 'es2020' },
   plugins: [vue()]
 })
