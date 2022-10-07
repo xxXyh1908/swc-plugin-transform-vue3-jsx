@@ -1,3 +1,4 @@
+import '../_global'
 // @ts-ignore
 import { Buffer } from 'buffer'
 globalThis.Buffer = Buffer

@@ -1,0 +1,2 @@
+globalThis.global = globalThis
+export {}
