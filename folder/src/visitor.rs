@@ -288,7 +288,7 @@ mod event_helpers {
 
         if !keys.is_empty() {
             let expr = keys.iter().map(|key| gen_filter_code(key)).fold(
-                quote!(r#"!("button" in $event)"# as Expr, event: Ident = super::clone_ident(&self::EVENT_IDENT),),
+                quote!(r#"!("button" in $event)"# as Expr, event: Ident = super::clone_ident(&self::EVENT_IDENT)),
                 |acc, item| {
                     Expr::Bin(BinExpr {
                         span: DUMMY_SP,
@@ -956,13 +956,11 @@ impl JSXTransformVisitor<'_> {
             return None;
         }
 
-        let expr = quote!(
-            r#"$create_text_v_node($text)"# as Expr,
+        quote!(
+            r#"$create_text_v_node($text)"# as Option <Expr>,
             create_text_v_node: Ident = self._get_create_text_v_node(),
             text: Expr = Expr::from(Str::from(test_str))
-        );
-
-        Some(expr)
+        )
     }
 
     pub fn resolve_jsx_children(&mut self, children: &mut Vec<JSXElementChild>) -> ArrayLit {
@@ -1508,10 +1506,10 @@ impl JSXTransformVisitor<'_> {
                                                         if self.is_vue_strip_expr(&expression) {
                                                             None
                                                         } else {
-                                                            Some(quote!(
-                                                                r#"$merge ( $expr )"# as Expr,
+                                                            quote!(
+                                                                r#"$merge ( $expr )"# as Option <Expr>,
                                                                 merge: Ident = self.add_import(HELPER_ID, "mergeFn")
-                                                            ))
+                                                            )
                                                         }
                                                     }
                                                 }
@@ -1693,12 +1691,12 @@ impl JSXTransformVisitor<'_> {
                                                         let ident = self.add_temp_variable(
                                                             move || {
                                                                 let mut result = quote!(
-                                                                    r"$once(() => ( $expr ))" as Expr,
+                                                                    r"$once(() => ( $expr ))" as Box <Expr>,
                                                                     once: Ident = once_identifier,
                                                                     expr: Expr = model_expr
                                                                 );
                                                                 result.set_span(span);
-                                                                Some(Box::new(result))
+                                                                Some(result)
                                                             },
                                                             VarDeclKind::Const,
                                                         );
