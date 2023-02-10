@@ -36,10 +36,10 @@ yarn add swc-plugin-transform-vue3-jsx -D
     "parser": {
       "syntax": "typescript",
       "tsx": true
+    },
+    "experimental": {
+      "plugins": [["swc-plugin-transform-vue3-jsx", {}]]
     }
-  },
-  "experimental": {
-    "plugins": [["swc-plugin-transform-vue3-jsx", {}]]
   }
 }
 ```
