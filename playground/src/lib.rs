@@ -2,6 +2,7 @@ use std::path::Path;
 
 use anyhow::Error;
 use serde_wasm_bindgen::{from_value, to_value};
+use swc::PrintArgs;
 use swc_core::{
     base::{
         config::{IsModule, SourceMapsConfig},
@@ -69,7 +70,7 @@ fn _transform(
                     None => FileName::Anon,
                 };
 
-                let fm = compiler.cm.new_source_file(filename, input.to_string());
+                let fm = compiler.cm.new_source_file(filename.into(), input.to_string());
                 let comments = Some(compiler.comments() as &dyn Comments);
 
                 let program = compiler.parse_js(
@@ -100,25 +101,26 @@ fn _transform(
                         }
 
                         // Remove typescript types
-                        program = program.fold_with(&mut strip(top_level_mark));
+                        program = program.fold_with(&mut strip(unresolved_mark, top_level_mark));
 
                         // Fix up any identifiers with the same name, but different contexts
                         program = program.fold_with(&mut hygiene());
 
-                        let names = AHashMap::default();
+                        // let names = AHashMap::default();
                         let output = compiler.print(
                             &program,
-                            None,
-                            None,
-                            false,
-                            EsVersion::latest(),
-                            SourceMapsConfig::Bool(true),
-                            &names,
-                            None,
-                            false,
-                            Some(compiler.comments()),
-                            true,
-                            false,
+                            PrintArgs::default()
+                            // None,
+                            // None,
+                            // false,
+                            // EsVersion::latest(),
+                            // SourceMapsConfig::Bool(true),
+                            // &names,
+                            // None,
+                            // false,
+                            // Some(compiler.comments()),
+                            // true,
+                            // false,
                         );
 
                         output

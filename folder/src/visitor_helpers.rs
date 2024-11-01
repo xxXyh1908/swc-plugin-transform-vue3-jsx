@@ -5,17 +5,10 @@ use std::{
 
 use linked_hash_map::LinkedHashMap;
 use swc_core::{
-    common::{Span, DUMMY_SP},
+    common::{Span, SyntaxContext, DUMMY_SP},
     ecma::{
         ast::{
-            self, ArrayPat, ArrowExpr, AssignPat, BigInt, BindingIdent, BlockStmt, BlockStmtOrExpr, Bool, Callee,
-            ClassDecl, ClassExpr, ClassMethod, ComputedPropName, Constructor, Decl, Expr, FnDecl, FnExpr, ForInStmt,
-            ForOfStmt, ForStmt, GetterProp, Ident, ImportSpecifier, JSXElement, JSXFragment, JSXMemberExpr,
-            JSXNamespacedName, JSXObject, JSXText, KeyValueProp, Lit, MemberExpr, MemberProp, MethodProp, Module,
-            ModuleDecl, ModuleItem, Null, Number, ObjectPat, ObjectPatProp, Param, ParamOrTsParamProp, Pat,
-            PrivateMethod, Prop, PropName, ReturnStmt, Script, SetterProp, SpreadElement, Stmt, Str, TsModuleDecl,
-            TsModuleName, TsNamespaceBody, TsParamPropParam, UnaryExpr, UnaryOp, VarDecl, VarDeclKind, VarDeclOrExpr,
-            VarDeclOrPat, VarDeclarator,
+            self, ArrayPat, ArrowExpr, AssignPat, BigInt, BindingIdent, BlockStmt, BlockStmtOrExpr, Bool, Callee, ClassDecl, ClassExpr, ClassMethod, ComputedPropName, Constructor, Decl, Expr, FnDecl, FnExpr, ForHead, ForInStmt, ForOfStmt, ForStmt, GetterProp, Ident, IdentName, ImportSpecifier, JSXElement, JSXFragment, JSXMemberExpr, JSXNamespacedName, JSXObject, JSXText, KeyValueProp, Lit, MemberExpr, MemberProp, MethodProp, Module, ModuleDecl, ModuleItem, Null, Number, ObjectPat, ObjectPatProp, Param, ParamOrTsParamProp, Pat, PrivateMethod, Prop, PropName, ReturnStmt, Script, SetterProp, SpreadElement, Stmt, Str, TsModuleDecl, TsModuleName, TsNamespaceBody, TsParamPropParam, UnaryExpr, UnaryOp, VarDecl, VarDeclKind, VarDeclOrExpr, VarDeclarator
         },
         atoms::js_word,
         utils::private_ident,
@@ -129,7 +122,7 @@ impl ObjectKey {
 impl From<&PropName> for ObjectKey {
     fn from(name: &PropName) -> Self {
         match name {
-            PropName::Ident(ident) => ObjectKey::Str(ast_ident_to_string(ident)),
+            PropName::Ident(ident) => ObjectKey::Str(ast_ident_name_to_string(ident)),
             PropName::Str(str) => ObjectKey::Str(ast_str_to_string(str)),
             PropName::Num(num) => {
                 let f64_val = num.value;
@@ -142,7 +135,7 @@ impl From<&PropName> for ObjectKey {
                 }
             }
             PropName::BigInt(bigint) => {
-                let value = &bigint.value;
+                let value = bigint.value.as_ref();
                 match value.to_biguint() {
                     None => ObjectKey::Expr(Expr::Lit(Lit::BigInt(BigInt::from(value.clone())))),
                     Some(value) => ObjectKey::Str(value.to_string()),
@@ -165,7 +158,7 @@ impl From<&PropName> for ObjectKey {
                             }
                         }
                         Lit::BigInt(bigint) => {
-                            let value = &bigint.value;
+                            let value = bigint.value.as_ref();
                             match value.to_biguint() {
                                 None => ObjectKey::Expr(Expr::Lit(Lit::BigInt(BigInt::from(value.clone())))),
                                 Some(value) => ObjectKey::Str(value.to_string()),
@@ -260,8 +253,9 @@ pub(crate) fn prepend_var_decls_into_stmts<Iter: Iterator<Item = (VarDeclKind, I
     for (kind, ident, init) in var_decls {
         stmts.insert(
             insert_index,
-            Stmt::Decl(Decl::Var(VarDecl {
+            Stmt::Decl(Decl::Var(Box::new(VarDecl {
                 span: DUMMY_SP,
+                ctxt: SyntaxContext::empty(),
                 kind,
                 declare: false,
                 decls: vec![VarDeclarator {
@@ -270,7 +264,7 @@ pub(crate) fn prepend_var_decls_into_stmts<Iter: Iterator<Item = (VarDeclKind, I
                     init,
                     definite: false,
                 }],
-            })),
+            }))),
         );
         insert_index += 1;
     }
@@ -292,8 +286,9 @@ pub(crate) fn prepend_var_decls_into_module_items<Iter: Iterator<Item = (VarDecl
     for (kind, ident, init) in var_decls {
         items.insert(
             insert_index,
-            ModuleItem::Stmt(Stmt::Decl(Decl::Var(VarDecl {
+            ModuleItem::Stmt(Stmt::Decl(Decl::Var(Box::new(VarDecl {
                 span: DUMMY_SP,
+                ctxt: SyntaxContext::empty(),
                 kind,
                 declare: false,
                 decls: vec![VarDeclarator {
@@ -302,7 +297,7 @@ pub(crate) fn prepend_var_decls_into_module_items<Iter: Iterator<Item = (VarDecl
                     init,
                     definite: false,
                 }],
-            }))),
+            })))),
         );
         insert_index += 1;
     }
@@ -380,7 +375,7 @@ impl FunctionScope for Constructor {
                             span: asset.span.clone(),
                             left: asset.left.clone(),
                             right: asset.right.clone(),
-                            type_ann: asset.type_ann.clone(),
+                            // type_ann: asset.type_ann.clone(),
                         }),
                     }),
                 },
@@ -406,7 +401,7 @@ impl FunctionScope for GetterProp {
 
 impl FunctionScope for SetterProp {
     fn _get_params(&self) -> Option<Vec<Param>> {
-        Some(vec![Param { span: DUMMY_SP, decorators: vec![], pat: self.param.clone() }])
+        Some(vec![Param { span: DUMMY_SP, decorators: vec![], pat: self.param.as_ref().clone() }])
     }
     fn _prepend_var_decls<Iter: Iterator<Item = (VarDeclKind, Ident, Option<Box<Expr>>)>>(&mut self, var_decls: Iter) {
         prepend_var_decls_into_option_block_stmt(&mut self.body, var_decls);
@@ -459,19 +454,20 @@ impl FunctionScope for ArrowExpr {
         Some(result)
     }
     fn _prepend_var_decls<Iter: Iterator<Item = (VarDeclKind, Ident, Option<Box<Expr>>)>>(&mut self, var_decls: Iter) {
-        match &mut self.body {
+        match &mut self.body.as_mut() {
             BlockStmtOrExpr::BlockStmt(block) => {
                 prepend_var_decls_into_block_stmt(block, var_decls);
             }
             BlockStmtOrExpr::Expr(expr) => {
                 let mut block = BlockStmt {
                     span: DUMMY_SP,
+                    ctxt: SyntaxContext::empty(),
                     stmts: vec![Stmt::Return(ReturnStmt { span: DUMMY_SP, arg: Some(expr.clone()) })],
                 };
 
                 prepend_var_decls_into_block_stmt(&mut block, var_decls);
 
-                self.body = BlockStmtOrExpr::BlockStmt(block);
+                self.body = Box::new(BlockStmtOrExpr::BlockStmt(block));
             }
             _ => {}
         };
@@ -522,7 +518,7 @@ impl ForLike for ForStmt {
 
 impl ForLike for ForInStmt {
     fn _get_init_decl(&self) -> Option<&'_ VarDecl> {
-        if let VarDeclOrPat::VarDecl(decl) = &self.left {
+        if let ForHead::VarDecl(decl) = &self.left {
             return Some(decl);
         }
         None
@@ -531,7 +527,7 @@ impl ForLike for ForInStmt {
 
 impl ForLike for ForOfStmt {
     fn _get_init_decl(&self) -> Option<&'_ VarDecl> {
-        if let VarDeclOrPat::VarDecl(decl) = &self.left {
+        if let ForHead::VarDecl(decl) = &self.left {
             return Some(decl);
         }
         None
@@ -559,16 +555,19 @@ pub(crate) fn create_null_expr() -> Expr {
 }
 
 pub(crate) fn create_ident(name: &str) -> Ident {
-    Ident::new(name.into(), DUMMY_SP)
+    Ident::new(name.into(), DUMMY_SP, SyntaxContext::empty())
 }
 
+pub(crate) fn create_ident_name(name: &str) -> IdentName {
+    IdentName::new(name.into(), DUMMY_SP)
+}
 pub(crate) fn create_private_ident(name: &str) -> Ident {
     let ident_name = format!("_{}", name);
     private_ident!(ident_name)
 }
 
 pub(crate) fn clone_ident(ident: &Ident) -> Ident {
-    Ident { span: ident.span.clone(), sym: ident.sym.clone(), optional: ident.optional }
+    Ident { span: ident.span.clone(), sym: ident.sym.clone(), optional: ident.optional,ctxt: SyntaxContext::empty() }
 }
 
 pub(crate) fn clone_lit(lit: &Lit) -> Lit {
@@ -576,7 +575,7 @@ pub(crate) fn clone_lit(lit: &Lit) -> Lit {
         Lit::Str(str) => Lit::Str(Str::from(String::from(ast_str_to_string(str)))),
         Lit::Bool(_bool) => Lit::Bool(Bool::from(_bool.value)),
         Lit::Num(num) => Lit::Num(Number::from(num.value)),
-        Lit::BigInt(bigint) => Lit::BigInt(BigInt::from(bigint.value.clone())),
+        Lit::BigInt(bigint) => Lit::BigInt(BigInt::from(bigint.value.as_ref().clone())),
         Lit::Regex(regexp) => {
             Lit::Regex(ast::Regex { span: regexp.span.clone(), exp: regexp.exp.clone(), flags: regexp.flags.clone() })
         }
@@ -594,6 +593,9 @@ pub(crate) fn ast_str_to_string(str: &Str) -> String {
 }
 
 pub(crate) fn ast_ident_to_string(ident: &Ident) -> String {
+    String::from(ident.sym.chars().as_str())
+}
+pub(crate) fn ast_ident_name_to_string(ident: &IdentName) -> String {
     String::from(ident.sym.chars().as_str())
 }
 
@@ -896,6 +898,11 @@ pub(crate) fn find_decl_ident_from_decl0(decl: &Decl, idents: &mut Vec<Ident>, f
                 idents.push(clone_ident(ident));
             }
         }
+        Decl::Using(decls) => {
+            for decl in decls.decls.iter() {
+                find_decl_ident_from_pattern0(&decl.name, idents);
+            }
+        }
         _ => {}
     }
 }
@@ -975,8 +982,9 @@ pub(crate) fn generate_var_decl_stmts(
     let mut stmts = Vec::with_capacity(new_vars.len());
 
     for (_, (kind, ident, expr)) in new_vars.drain() {
-        stmts.push(Stmt::Decl(Decl::Var(VarDecl {
+        stmts.push(Stmt::Decl(Decl::Var(Box::new(VarDecl {
             span: DUMMY_SP,
+            ctxt:SyntaxContext::empty(),
             kind,
             declare: false,
             decls: vec![VarDeclarator {
@@ -985,7 +993,7 @@ pub(crate) fn generate_var_decl_stmts(
                 init: expr,
                 definite: false,
             }],
-        })))
+        }))))
     }
 
     stmts
@@ -1049,6 +1057,7 @@ impl_get_span!(swc_core::ecma::ast::ForStmt);
 impl_get_span!(swc_core::ecma::ast::Function);
 impl_get_span!(swc_core::ecma::ast::GetterProp);
 impl_get_span!(swc_core::ecma::ast::Ident);
+impl_get_span!(swc_core::ecma::ast::IdentName);
 impl_get_span!(swc_core::ecma::ast::IfStmt);
 impl_get_span!(swc_core::ecma::ast::Import);
 impl_get_span!(swc_core::ecma::ast::ImportDecl);
@@ -1056,6 +1065,7 @@ impl_get_span!(swc_core::ecma::ast::ImportDefaultSpecifier);
 impl_get_span!(swc_core::ecma::ast::ImportNamedSpecifier);
 impl_get_span!(swc_core::ecma::ast::ImportStarAsSpecifier);
 impl_get_span!(swc_core::ecma::ast::Invalid);
+impl_get_span!(swc_core::ecma::ast::TsSatisfiesExpr);
 impl_get_span!(swc_core::ecma::ast::JSXClosingElement);
 impl_get_span!(swc_core::ecma::ast::JSXClosingFragment);
 impl_get_span!(swc_core::ecma::ast::JSXElement);
@@ -1083,7 +1093,7 @@ impl_get_span!(swc_core::ecma::ast::PrivateMethod);
 impl_get_span!(swc_core::ecma::ast::PrivateName);
 impl_get_span!(swc_core::ecma::ast::PrivateProp);
 impl_get_span!(swc_core::ecma::ast::Regex);
-impl_get_span!(swc_core::ecma::ast::ReservedUnused);
+// impl_get_span!(swc_core::ecma::ast::ReservedUnused);
 impl_get_span!(swc_core::ecma::ast::RestPat);
 impl_get_span!(swc_core::ecma::ast::ReturnStmt);
 impl_get_span!(swc_core::ecma::ast::Script);
@@ -1130,6 +1140,7 @@ impl_get_span!(swc_core::ecma::ast::TsMappedType);
 impl_get_span!(swc_core::ecma::ast::TsMethodSignature);
 impl_get_span!(swc_core::ecma::ast::TsModuleBlock);
 impl_get_span!(swc_core::ecma::ast::TsModuleDecl);
+impl_get_span!(swc_core::ecma::ast::UsingDecl);
 impl_get_span!(swc_core::ecma::ast::TsNamespaceDecl);
 impl_get_span!(swc_core::ecma::ast::TsNamespaceExportDecl);
 impl_get_span!(swc_core::ecma::ast::TsNonNullExpr);
@@ -1323,6 +1334,7 @@ impl AstSpanAccessor for Expr {
             Expr::PrivateName(expr) => expr.get_span(),
             Expr::OptChain(expr) => expr.get_span(),
             Expr::Invalid(expr) => expr.get_span(),
+            Expr::TsSatisfies(expr) => expr.get_span(),
         }
     }
 
@@ -1365,6 +1377,7 @@ impl AstSpanAccessor for Expr {
             Expr::PrivateName(expr) => expr.set_span(_span),
             Expr::OptChain(expr) => expr.set_span(_span),
             Expr::Invalid(expr) => expr.set_span(_span),
+            Expr::TsSatisfies(expr) => expr.set_span(_span),
         }
     }
 }
@@ -1379,6 +1392,7 @@ impl AstSpanAccessor for Decl {
             Decl::TsTypeAlias(decl) => decl.get_span(),
             Decl::TsEnum(decl) => decl.get_span(),
             Decl::TsModule(decl) => decl.get_span(),
+            Decl::Using(decl) => decl.get_span(),
         }
     }
 
@@ -1391,6 +1405,7 @@ impl AstSpanAccessor for Decl {
             Decl::TsTypeAlias(decl) => decl.set_span(_span),
             Decl::TsEnum(decl) => decl.set_span(_span),
             Decl::TsModule(decl) => decl.set_span(_span),
+            Decl::Using(decl) => decl.set_span(_span),
         }
     }
 }

@@ -7,7 +7,7 @@ use lazy_static::lazy_static;
 use linked_hash_map::LinkedHashMap;
 use regex::Regex;
 use swc_core::{
-    common::{comments::Comments, BytePos, Span, DUMMY_SP},
+    common::{comments::Comments, BytePos, Span, SyntaxContext, DUMMY_SP},
     ecma::{
         ast::{
             ArrayLit, ArrowExpr, AssignPat, BindingIdent, BlockStmt, CallExpr, Callee, ClassExpr, ClassMethod,
@@ -17,7 +17,7 @@ use swc_core::{
             JSXExprContainer, JSXFragment, JSXText, KeyValuePatProp, KeyValueProp, Lit, MethodProp, Module, ModuleDecl,
             ModuleExportName, ModuleItem, Number, ObjectLit, ObjectPat, ObjectPatProp, Pat, PrivateMethod, Program,
             Prop, PropName, PropOrSpread, Script, SeqExpr, SetterProp, SpreadElement, Stmt, Str, ThisExpr,
-            TsExportAssignment, TsModuleDecl, UnaryOp, VarDecl, VarDeclKind, VarDeclarator,
+            TsExportAssignment, TsModuleDecl, UnaryOp, VarDecl, VarDeclKind, VarDeclarator, ImportPhase
         },
         atoms::js_word,
         utils::{private_ident, quote_ident, quote_str},
@@ -31,7 +31,7 @@ use crate::{
     flags::{PatchFlags, SlotFlags},
     utils::{camelize, camelize_upper_first, lower_first, upper_first, StringFilter},
     visitor_helpers::{
-        ast_ident_to_string, ast_str_to_string, clone_ident, clone_lit, create_ident, create_key_value_prop,
+        ast_ident_to_string,ast_ident_name_to_string, ast_str_to_string, clone_ident, clone_lit, create_ident, create_ident_name, create_key_value_prop,
         create_null_expr, create_private_ident, create_true_expr, create_void_zero_expr,
         find_decl_ident_from_module_items, find_decl_ident_from_pattern, find_decl_ident_from_pattern0,
         find_decl_ident_from_stmts, is_constant_expr, is_define_component_expr, is_script_top,
@@ -48,7 +48,7 @@ mod event_helpers {
 
     use lazy_static::lazy_static;
     use swc_core::{
-        common::DUMMY_SP,
+        common::{SyntaxContext, DUMMY_SP},
         ecma::{
             ast::{
                 ArrayLit, ArrowExpr, BinExpr, BinaryOp, BindingIdent, BlockStmt, BlockStmtOrExpr, ComputedPropName,
@@ -319,8 +319,9 @@ mod event_helpers {
             event,
             Some(Expr::Arrow(ArrowExpr {
                 span: DUMMY_SP,
+                ctxt: SyntaxContext::empty(),
                 params: vec![Pat::Ident(BindingIdent::from(super::clone_ident(&self::EVENT_IDENT)))],
-                body: BlockStmtOrExpr::BlockStmt(BlockStmt { span: DUMMY_SP, stmts: code }),
+                body: Box::new(BlockStmtOrExpr::BlockStmt(BlockStmt { span: DUMMY_SP, stmts: code, ctxt: SyntaxContext::empty() })),
                 is_async: false,
                 is_generator: false,
                 type_params: None,
@@ -430,7 +431,7 @@ impl VModelArgument {
 
     fn to_prop_name_with_prefix(&self, prefix: &str) -> PropName {
         match self {
-            VModelArgument::Str(str) => PropName::Str(Str::from(String::from(prefix) + str)),
+            VModelArgument::Str(str) => PropName::Str(Str::from(String::from(prefix) + str.as_str())),
             VModelArgument::Expr(expr) => PropName::Computed(ComputedPropName {
                 span: expr.as_ref().get_span(),
                 expr: quote!(
@@ -458,7 +459,7 @@ impl VModelArgument {
 
     fn to_prop_name_with_prefix_suffix(&self, prefix: &str, suffix: &str) -> PropName {
         match self {
-            VModelArgument::Str(str) => PropName::Str(Str::from(String::from(prefix) + str + suffix)),
+            VModelArgument::Str(str) => PropName::Str(Str::from(String::from(prefix) + str.as_str() + suffix)),
             VModelArgument::Expr(expr) => PropName::Computed(ComputedPropName {
                 span: expr.as_ref().get_span(),
                 expr: quote!(
@@ -520,6 +521,7 @@ impl JSXTransformVisitor<'_> {
 
                 for (i, (module_id, value)) in self.imports.drain().enumerate() {
                     let mut specifiers = Vec::with_capacity(value.len());
+                    let mut props = Vec::new();
                     for (name, local) in value.into_iter() {
                         specifiers.push(ImportSpecifier::Named(ImportNamedSpecifier {
                             span: DUMMY_SP,
@@ -533,9 +535,14 @@ impl JSXTransformVisitor<'_> {
                         ModuleItem::ModuleDecl(ModuleDecl::Import(ImportDecl {
                             span: DUMMY_SP,
                             specifiers,
-                            src: module_id.into(),
+                            src: Box::new(module_id.into()),
                             type_only: false,
-                            asserts: None,
+                            phase: ImportPhase::Source,
+                            with: Some(Box::new(ObjectLit {
+                                span: DUMMY_SP,
+                                props
+                            }))
+                            // asserts: None,
                         })),
                     );
                 }
@@ -561,7 +568,7 @@ impl JSXTransformVisitor<'_> {
                     let mut properties = Vec::with_capacity(value.len());
                     for (name, local) in value.into_iter() {
                         properties.push(ObjectPatProp::KeyValue(KeyValuePatProp {
-                            key: PropName::Ident(create_ident(&name)),
+                            key: PropName::Ident(create_ident_name(&name)),
                             value: Box::from(BindingIdent::from(local)),
                         }))
                     }
@@ -575,6 +582,7 @@ impl JSXTransformVisitor<'_> {
                         }),
                         init: Some(Box::from(Expr::Call(CallExpr {
                             span: DUMMY_SP,
+                            ctxt: SyntaxContext::empty(),
                             callee: Callee::Expr(Box::from(quote_ident!("require"))),
                             args: vec![ExprOrSpread::from(Expr::Lit(Lit::Str(Str::from(module_id))))],
                             type_args: None,
@@ -586,12 +594,13 @@ impl JSXTransformVisitor<'_> {
                 if !decls.is_empty() {
                     items.insert(
                         insert_index,
-                        Stmt::Decl(Decl::Var(VarDecl {
+                        Stmt::Decl(Decl::Var(Box::new(VarDecl {
                             span: DUMMY_SP,
+                            ctxt: SyntaxContext::empty(),
                             kind: VarDeclKind::Const,
                             declare: false,
                             decls,
-                        })),
+                        }))),
                     );
                     insert_index += 1;
                 }
@@ -599,8 +608,9 @@ impl JSXTransformVisitor<'_> {
                 for (kind, ident, init) in self.new_global_vars.drain_values() {
                     items.insert(
                         insert_index,
-                        Stmt::Decl(Decl::Var(VarDecl {
+                        Stmt::Decl(Decl::Var(Box::new(VarDecl {
                             span: DUMMY_SP,
+                            ctxt: SyntaxContext::empty(),
                             kind,
                             declare: false,
                             decls: vec![VarDeclarator {
@@ -609,7 +619,7 @@ impl JSXTransformVisitor<'_> {
                                 init,
                                 definite: false,
                             }],
-                        })),
+                        }))),
                     );
                     insert_index += 1;
                 }
@@ -1048,6 +1058,7 @@ impl JSXTransformVisitor<'_> {
             let get_resolved_component_expr = || {
                 Expr::Call(CallExpr {
                     span,
+                    ctxt: SyntaxContext::empty(),
                     callee: Callee::Expr(Box::new(resolve_component.into())),
                     args: vec![ExprOrSpread {
                         spread: None,
@@ -1088,7 +1099,7 @@ impl JSXTransformVisitor<'_> {
             match attr {
                 JSXAttrOrSpread::JSXAttr(attr) => {
                     let name = match &attr.name {
-                        JSXAttrName::Ident(ident) => ast_ident_to_string(ident),
+                        JSXAttrName::Ident(ident) => ast_ident_name_to_string(ident),
                         JSXAttrName::JSXNamespacedName(name) => {
                             let ns = &name.ns;
                             let name = &name.name;
@@ -1142,6 +1153,7 @@ impl JSXTransformVisitor<'_> {
                             type_ann: None,
                             body: Some(BlockStmt {
                                 span: DUMMY_SP,
+                                ctxt: SyntaxContext::empty(),
                                 stmts: vec![quote!(
                                     r#"return this[ $key ];"# as Stmt,
                                     key: Expr = Expr::Lit(Lit::Str(Str::from(camelize_name.clone())))
@@ -1152,9 +1164,11 @@ impl JSXTransformVisitor<'_> {
                         props_array.push(PropOrSpread::Prop(Box::new(Prop::Setter(SetterProp {
                             span: DUMMY_SP,
                             key: key.clone(),
-                            param: Pat::Ident(BindingIdent::from(clone_ident(&value))),
+                            this_param: Some(Pat::Ident(BindingIdent::from(clone_ident(&value)))),
+                            param: Box::new(Pat::Ident(BindingIdent::from(clone_ident(&value)))),
                             body: Some(BlockStmt {
                                 span: DUMMY_SP,
+                                ctxt: SyntaxContext::empty(),
                                 stmts: vec![quote!(
                                     r#"this[ $key ] = $value;"# as Stmt,
                                     value: Ident = value,
@@ -1228,7 +1242,7 @@ impl JSXTransformVisitor<'_> {
                         JSXAttrOrSpread::JSXAttr(attr) => {
                             match &attr.name {
                                 JSXAttrName::Ident(ident) => {
-                                    let name = ast_ident_to_string(ident);
+                                    let name = ast_ident_name_to_string(ident);
                                     if name == "type" {
                                         let expr = match &attr.value {
                                             Some(value) => match value {
@@ -1280,7 +1294,7 @@ impl JSXTransformVisitor<'_> {
             match attr {
                 JSXAttrOrSpread::JSXAttr(attr) => {
                     let (mut name, name_span) = match &attr.name {
-                        JSXAttrName::Ident(ident) => (ast_ident_to_string(ident), ident.get_span()),
+                        JSXAttrName::Ident(ident) => (ast_ident_name_to_string(ident), ident.get_span()),
                         JSXAttrName::JSXNamespacedName(name) => {
                             let ns = &name.ns;
                             let name = &name.name;
@@ -1355,14 +1369,14 @@ impl JSXTransformVisitor<'_> {
                                             match *prop {
                                                 Prop::Shorthand(ident) => {
                                                     on_map.insert(
-                                                        String::from("on") + &upper_first(&ast_ident_to_string(&ident)),
+                                                        String::from("on") + upper_first(&ast_ident_to_string(&ident)).as_str(),
                                                         Expr::Ident(clone_ident(&ident)),
                                                     );
                                                 }
                                                 Prop::KeyValue(key_value) => {
                                                     if let ObjectKey::Str(key) = ObjectKey::from(&key_value.key) {
                                                         on_map.insert(
-                                                            String::from("on") + &upper_first(&key),
+                                                            String::from("on") + upper_first(&key).as_str(),
                                                             *key_value.value,
                                                         );
                                                     }
@@ -1370,7 +1384,7 @@ impl JSXTransformVisitor<'_> {
                                                 Prop::Method(method) => {
                                                     if let ObjectKey::Str(key) = ObjectKey::from(&method.key) {
                                                         on_map.insert(
-                                                            String::from("on") + &upper_first(&key),
+                                                            String::from("on") + upper_first(&key).as_str(),
                                                             Expr::Fn(FnExpr {
                                                                 ident: Some(create_ident(&key)),
                                                                 function: method.function,
@@ -1398,6 +1412,7 @@ impl JSXTransformVisitor<'_> {
                                 dot3_token: DUMMY_SP,
                                 expr: Box::new(Expr::Call(CallExpr {
                                     span: DUMMY_SP,
+                                    ctxt: SyntaxContext::empty(),
                                     callee: Callee::Expr(Box::from(Expr::Ident(
                                         self.add_import(HELPER_ID, "transformOn"),
                                     ))),
@@ -1429,10 +1444,10 @@ impl JSXTransformVisitor<'_> {
                     if self.config.transform_on_update_event {
                         if let Some(caps) = ON_UPDATE_EVENT_REGEX.captures(&name) {
                             name = String::from("onUpdate:")
-                                + &(match &caps.get(1) {
+                                + (match &caps.get(1) {
                                     None => String::from(""),
                                     Some(m) => m.as_str().to_lowercase(),
-                                })
+                                }).as_str()
                                 + (match &caps.get(2) {
                                     None => "",
                                     Some(m) => m.as_str(),
@@ -1706,6 +1721,7 @@ impl JSXTransformVisitor<'_> {
                                                         model_arg =
                                                             VModelArgument::Expr(Box::new(Expr::Call(CallExpr {
                                                                 span: DUMMY_SP,
+                                                                ctxt: SyntaxContext::empty(),
                                                                 callee: Callee::Expr(Box::new(Expr::Ident(ident))),
                                                                 args: vec![],
                                                                 type_args: None,
@@ -1836,6 +1852,7 @@ impl JSXTransformVisitor<'_> {
                                                 let get_resolved_directive_expr = || {
                                                     Expr::Call(CallExpr {
                                                         span: name_span.clone(),
+                                                        ctxt: SyntaxContext::empty(),
                                                         callee: Callee::Expr(Box::new(resolve_directive.into())),
                                                         args: vec![ExprOrSpread {
                                                             spread: None,
@@ -2117,8 +2134,8 @@ impl JSXTransformVisitor<'_> {
         let mut reload_record_expressions = Vec::new();
         let mut callback_param_binds_pattern = Vec::new();
         let mut ssr_register_helper_expressions = Vec::new();
-        let __VUE_HMR_RUNTIME__ = quote_ident!("__VUE_HMR_RUNTIME__");
-        let __MODULE__ = private_ident!("__MODULE__");
+        let __VUE_HMR_RUNTIME__ = quote_ident!("__VUE_HMR_RUNTIME__").into();
+        let __MODULE__ = private_ident!("__MODULE__").into();
 
         for (_, comp) in components {
             let DefineComponentInfo { local, mut exports } = comp;
@@ -2145,13 +2162,13 @@ impl JSXTransformVisitor<'_> {
                 ));
 
                 callback_param_binds_pattern.push(ObjectPatProp::KeyValue(KeyValuePatProp {
-                    key: PropName::Ident(create_ident(&export_name)),
+                    key: PropName::Ident(create_ident_name(&export_name)),
                     value: Box::new(if export_name == "default" {
                         Pat::Assign(AssignPat {
                             span: DUMMY_SP,
                             left: Box::new(Pat::Ident(BindingIdent::from(clone_ident(&local)))),
                             right: Box::new(Expr::Ident(clone_ident(&__MODULE__))),
-                            type_ann: None,
+                            // type_ann: None,
                         })
                     } else {
                         Pat::Ident(BindingIdent::from(clone_ident(&local)))
@@ -2390,16 +2407,17 @@ impl JSXTransformVisitor<'_> {
                                         key,
                                         Expr::Fn(FnExpr {
                                             ident: None,
-                                            function: Function {
+                                            function: Box::new(Function {
                                                 params: function.params.clone(),
                                                 decorators: function.decorators.clone(),
                                                 span: function.span.clone(),
+                                                ctxt: SyntaxContext::empty(),
                                                 body: function.body.clone(),
                                                 is_generator: function.is_generator,
                                                 is_async: function.is_async,
                                                 type_params: function.type_params.clone(),
                                                 return_type: function.return_type.clone(),
-                                            },
+                                            }),
                                         }),
                                     )
                                 }
@@ -2455,6 +2473,7 @@ impl JSXTransformVisitor<'_> {
 
                 Expr::Call(CallExpr {
                     span: DUMMY_SP,
+                    ctxt: SyntaxContext::empty(),
                     callee: Callee::Expr(Box::new(Expr::Ident(self.add_import("vue", "mergeProps")))),
                     args,
                     type_args: None,
@@ -2491,7 +2510,7 @@ impl JSXTransformVisitor<'_> {
         modifiers.sort();
 
         Expr::Ident(self.add_global_variable(
-            String::from("modifiers:") + &modifiers.join(","),
+            String::from("modifiers:") + modifiers.join(",").as_str(),
             move || {
                 Some(Box::new(Expr::Object({
                     let mut props = Vec::with_capacity(modifiers.len());
@@ -2510,7 +2529,7 @@ impl JSXTransformVisitor<'_> {
         array_props.sort();
 
         Expr::Ident(self.add_global_variable(
-            String::from("array_props:") + &array_props.join(","),
+            String::from("array_props:") + array_props.join(",").as_str(),
             move || {
                 Some(Box::new(Expr::Array({
                     let mut elems = Vec::with_capacity(array_props.len());
@@ -2802,6 +2821,7 @@ impl JSXTransformVisitor<'_> {
 
         let mut v_node = Expr::Call(CallExpr {
             span: span.clone(),
+            ctxt: SyntaxContext::empty(),
             callee: Callee::Expr(Box::new(Expr::Ident(self._get_create_v_node()))),
             args: params,
             type_args: None,
@@ -2810,6 +2830,7 @@ impl JSXTransformVisitor<'_> {
         if !directives.is_empty() {
             v_node = Expr::Call(CallExpr {
                 span: span.clone(),
+                ctxt: SyntaxContext::empty(),
                 callee: Callee::Expr(Box::new(self._get_with_directives().into())),
                 args: vec![
                     ExprOrSpread { spread: None, expr: Box::new(v_node) },

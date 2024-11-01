@@ -3,7 +3,7 @@ authors = ["xxXyh1908 <15626874924@163.com>"]
 edition = "2021"
 license = "MIT"
 name = "swc_plugin_transform_vue3_jsx"
-version = "0.2.0"
+version = "0.3.0"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -19,8 +19,8 @@ opt-level = 2
 [dependencies]
 serde = "1"
 serde_json = "1"
-swc_core = {version = ">=0.22.0", features = [
-  "plugin_transform",
+swc_core = {version = "0.109", features = [
+  "ecma_plugin_transform",
   "ecma_visit",
   "ecma_ast",
   "common",

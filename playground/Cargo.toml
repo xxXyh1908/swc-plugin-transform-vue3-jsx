@@ -16,8 +16,8 @@ lazy_static = "1.4.0"
 serde = "1"
 serde-wasm-bindgen = "0.4.3"
 serde_json = "1"
-swc = ">=0.226.0"
-swc_core = {version = ">=0.22.0", features = [
+swc = "0.290"
+swc_core = {version = "0.109", features = [
   "ecma_utils",
   "ecma_visit",
   "ecma_ast",
@@ -27,8 +27,8 @@ swc_core = {version = ">=0.22.0", features = [
   "common",
   "base",
 ]}
-swc_ecma_transforms_base = ">=0.108.0"
-swc_ecma_transforms_typescript = ">=0.154.0"
+swc_ecma_transforms_base = "0.150"
+swc_ecma_transforms_typescript = "0.203"
 vue3_jsx_folder = {path = "../folder"}
 wasm-bindgen = "0.2.82"
 

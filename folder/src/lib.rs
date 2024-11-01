@@ -3,7 +3,6 @@ use swc_core::{
     common::comments::Comments,
     ecma::visit::{as_folder, Fold},
 };
-
 use crate::{
     utils::{create_file_name_filter, create_filter},
     visitor::{JSXTransformVisitor, JSXTransformVisitorOptions},
